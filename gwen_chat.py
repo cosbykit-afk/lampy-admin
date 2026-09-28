@@ -31,6 +31,34 @@ import stack as stackmod
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
 OLLAMA_MODEL = os.environ.get("GWEN_MODEL", "gwen:latest")
+MODEL_OVERRIDE_FILE = os.environ.get(
+    "GWEN_MODEL_OVERRIDE_FILE", "/opt/lampy-console/.gwen_model")
+
+
+def get_model():
+    """Model Gwen currently uses: runtime override file wins, else env."""
+    try:
+        with open(MODEL_OVERRIDE_FILE) as f:
+            name = f.read().strip()
+            if name:
+                return name
+    except OSError:
+        pass
+    return os.environ.get("GWEN_MODEL", "gwen:latest")
+
+
+def set_model(name):
+    """Switch Gwen's model at runtime (OLL-02). Persists to the override
+    file so it survives console restarts. Returns (ok, message)."""
+    name = (name or "").strip()
+    if not name:
+        return False, "model name is empty"
+    try:
+        with open(MODEL_OVERRIDE_FILE, "w") as f:
+            f.write(name + "\n")
+    except OSError as e:
+        return False, "could not persist model choice: %s" % e
+    return True, "Gwen will now use %s" % name
 
 # Services Gwen can manage (excludes console for self-protection)
 MANAGEABLE = ["postgres", "apache2", "forum", "ollama", "james",
@@ -182,11 +210,11 @@ Rules:
 Respond in a helpful, direct tone. You are Gwen, not a generic AI."""
 
 
-def _ollama_chat(messages, stream=False):
+def _ollama_chat(messages, stream=False, model=None):
     """Send messages to Ollama, return response text."""
     url = f"http://{OLLAMA_HOST}/api/chat"
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": model or get_model(),
         "messages": messages,
         "stream": stream,
     }
