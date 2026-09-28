@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}R Theory — Administration{% endblock %}
+{% block content %}
+<h1>R Theory Website</h1>
+<p class="sub">Deploy, parse, vectorize, and search the R Theory rewrite series.</p>
+
+<div class="card">
+  <h2>Status</h2>
+  <dl class="stats">
+    <dt>Chunks in database</dt><dd id="stat-chunks">{{ stats[0] }}</dd>
+    <dt>Vectorized</dt><dd id="stat-vectorized">{{ stats[1] }}</dd>
+    <dt>Total characters</dt><dd id="stat-chars">{{ stats[2] }}</dd>
+    <dt>Embedding model</dt>
+    <dd id="stat-model">{{ "available" if embed_ok else "not installed" }}</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h2>Operations</h2>
+  <form method="post" action="{{ url_for('rtheory_deploy') }}" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn">Deploy Website</button>
+    <span class="hint">Sync site files to the web server.</span>
+  </form>
+  <form method="post" action="{{ url_for('rtheory_parse') }}" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn">Parse &amp; Store</button>
+    <span class="hint">Extract text chunks into the database.</span>
+  </form>
+  <form method="post" action="{{ url_for('rtheory_vectorize') }}" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn"
+            {% if not embed_ok %}disabled title="Embedding model not installed"{% endif %}>
+      Vectorize
+    </button>
+    <span class="hint">Create 768-dim embeddings (may take a while).</span>
+  </form>
+  {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Semantic Search</h2>
+  <form method="get" action="{{ url_for('rtheory_search') }}" class="search-form">
+    <label for="q">Search the R Theory text:</label>
+    <input type="text" id="q" name="q" value="{{ query|default('') }}"
+           placeholder="e.g. Casimir operator spectrum" autofocus>
+    <button type="submit" class="btn">Search</button>
+  </form>
+  {% if results is defined %}
+    {% if results %}
+      <ol class="results">
+      {% for r in results %}
+        <li>
+          <strong>{{ r.title }}</strong>
+          <span class="muted">{{ r.source }} · similarity {{ "%.3f"|format(r.similarity) }}</span><br>
+          <span class="path">{{ r.heading_path }}</span>
+          <p>{{ r.snippet }}…</p>
+        </li>
+      {% endfor %}
+      </ol>
+    {% elif query %}
+      <p class="muted">No results. Vectorize the site first.</p>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
