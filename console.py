@@ -75,7 +75,8 @@ def _inject():
     for prefix, name in (("stack", "stack"), ("forum", "forum"),
                          ("write", "write"), ("search", "search"),
                          ("doc", "docs"), ("metrics", "metrics"),
-                         ("mail", "mail"), ("admin", "admin"), ("db", "db")):
+                         ("mail", "mail"), ("admin", "admin"), ("db", "db"),
+                         ("rtheory", "rtheory")):
         if ep.startswith(prefix):
             tab = name
             break
@@ -1157,6 +1158,123 @@ def httpd_log_api(name):
     ok, text = httpd_admin.log_tail(name, 100)
     return jsonify({"ok": ok, "text": text if ok else "",
                     "error": None if ok else text})
+
+
+# --------------------------------------------------------------------------
+# Windows Tools — port forwarding and desktop app integration
+# --------------------------------------------------------------------------
+
+@app.get("/windowstools")
+@auth.admin_required
+def windowstools_index():
+    return render_template("windowstools.html", tab="windowstools",
+                           csrf_token=security.csrf_token())
+
+
+@app.get("/api/windowstools/proxy-status")
+@auth.admin_required
+def windowstools_proxy_status_api():
+    import windowstools
+    status = windowstools.get_proxy_status()
+    return jsonify(status)
+
+
+@app.post("/api/windowstools/refresh-proxy")
+@auth.admin_required
+def windowstools_refresh_proxy_api():
+    if not security.validate_csrf_json():
+        return jsonify({"ok": False, "error": "CSRF validation failed"}), 403
+    import windowstools
+    result = windowstools.refresh_proxies()
+    return jsonify(result)
+
+
+@app.get("/windowstools/refresh-script")
+@auth.admin_required
+def windowstools_refresh_script():
+    from flask import send_file
+    import os
+    path = os.path.join(os.path.dirname(__file__), "Refresh-WslPortForwards.ps1")
+    return send_file(path, as_attachment=True,
+                     download_name="Refresh-WslPortForwards.ps1")
+
+
+# --------------------------------------------------------------------------
+# R Theory — website deploy, parse, vectorize, search
+# --------------------------------------------------------------------------
+
+@app.get("/rtheory")
+@auth.admin_required
+def rtheory_index():
+    import rtheory
+    rtheory.ensure_tables(db)
+    stats = rtheory.get_stats(db)
+    return render_template("rtheory.html", tab="rtheory",
+csrf_token=security.csrf_token(),
+                           stats=stats,
+                           embed_ok=rtheory.check_embed_model(),
+                           message=request.args.get("msg"))
+
+
+@app.post("/rtheory/deploy")
+@auth.admin_required
+def rtheory_deploy():
+    import rtheory, shutil
+    # Sync from the bundled site dir if present; else use deployed location
+    src = "/opt/lampy-console/rtheory_site"
+    dst = "/var/www/html/r-theory"
+    if os.path.isdir(src):
+        shutil.rmtree(dst, ignore_errors=True)
+        shutil.copytree(src, dst)
+        msg = "Website deployed from bundle."
+    else:
+        msg = "Bundle not found; using existing /var/www/html/r-theory."
+    return redirect("/rtheory?msg=" + msg)
+
+
+@app.post("/rtheory/parse")
+@auth.admin_required
+def rtheory_parse():
+    import rtheory
+    rtheory.ensure_tables(db)
+    site_dir = "/var/www/html/r-theory"
+    chunks = rtheory.parse_site(site_dir)
+    # Store without vectors (fast); vectorize separately
+    rtheory.store_chunks(db, chunks, embed_fn=None)
+    return redirect("/rtheory?msg=Parsed %d chunks." % len(chunks))
+
+
+@app.post("/rtheory/vectorize")
+@auth.admin_required
+def rtheory_vectorize():
+    import rtheory
+    if not rtheory.check_embed_model():
+        return redirect("/rtheory?msg=Embedding model not installed.")
+    rtheory.ensure_tables(db)
+    site_dir = "/var/www/html/r-theory"
+    chunks = rtheory.parse_site(site_dir)
+    n = rtheory.store_chunks(db, chunks, embed_fn=rtheory.embed_text)
+    return redirect("/rtheory?msg=Vectorized %d chunks." % n)
+
+
+@app.get("/rtheory/search")
+@auth.admin_required
+def rtheory_search():
+    import rtheory
+    rtheory.ensure_tables(db)
+    stats = rtheory.get_stats(db)
+    query = request.args.get("q", "").strip()
+    results = []
+    if query and rtheory.check_embed_model():
+        qvec = rtheory.embed_text(query)
+        if qvec:
+            results = rtheory.semantic_search(db, qvec, limit=10)
+    return render_template("rtheory.html", tab="rtheory",
+csrf_token=security.csrf_token(),
+                           stats=stats,
+                           embed_ok=rtheory.check_embed_model(),
+                           query=query, results=results,
+                           message=None)
 
 
 # --------------------------------------------------------------------------
