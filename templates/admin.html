@@ -2,6 +2,79 @@
 {% block content %}
 <h1>Admin</h1>
 
+<h2>Forum Access</h2>
+<form method="post" action="/admin/forum-toggle" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="forum_registered_only" value="{{ '0' if forum_registered_only else '1' }}">
+  <p>
+    {% if forum_registered_only %}
+    <span class="lock">&#x1f512; Forum is restricted to registered users only.</span>
+    <button type="submit">Open to everyone</button>
+    {% else %}
+    Forum is open to everyone (guests can read).
+    <button type="submit">Restrict to registered users</button>
+    {% endif %}
+  </p>
+</form>
+
+<h2>Software Update</h2>
+<p>Current version: <code>v{{ current_version }}</code></p>
+<p>
+  <button type="button" id="check-update-btn" class="btn">Check for updates</button>
+  <span id="update-status" class="muted" role="status"></span>
+</p>
+<div id="update-info" style="display:none;">
+  <p id="update-detail"></p>
+  <button type="button" id="apply-update-btn" class="btn" style="display:none;">Download and install update</button>
+</div>
+<script>
+(function() {
+  var csrf = "{{ csrf_token }}";
+  var checkBtn = document.getElementById('check-update-btn');
+  var applyBtn = document.getElementById('apply-update-btn');
+  var status = document.getElementById('update-status');
+  var infoDiv = document.getElementById('update-info');
+  var detail = document.getElementById('update-detail');
+  checkBtn.addEventListener('click', function() {
+    status.textContent = 'Checking...';
+    infoDiv.style.display = 'none';
+    applyBtn.style.display = 'none';
+    fetch('/api/update/check', {credentials: 'same-origin'})
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.ok) { status.textContent = 'Error: ' + (d.error || 'unknown'); return; }
+        infoDiv.style.display = 'block';
+        if (d.has_update) {
+          status.textContent = '';
+          detail.innerHTML = '<strong>Update available: v' + d.latest + '</strong> (you have v' + d.current + ')<br>' +
+            (d.release_name ? d.release_name + '<br>' : '');
+          applyBtn.style.display = 'inline-block';
+        } else {
+          status.textContent = 'You are on the latest version (v' + d.current + ').';
+        }
+      })
+      .catch(function(e) { status.textContent = 'Error: ' + e.message; });
+  });
+  applyBtn.addEventListener('click', function() {
+    if (!confirm('Download and install the update? A backup will be kept. The console will need a restart after.')) return;
+    status.textContent = 'Downloading and installing...';
+    applyBtn.disabled = true;
+    fetch('/api/update/apply', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({csrf_token: csrf})
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        status.textContent = d.message || (d.ok ? 'Done.' : 'Failed.');
+        if (d.ok) { detail.innerHTML = '<span class="ok">' + d.message + '</span>'; }
+        applyBtn.disabled = false;
+      })
+      .catch(function(e) { status.textContent = 'Error: ' + e.message; applyBtn.disabled = false; });
+  });
+})();
+</script>
+
 <h2>Tables</h2>
 <table>
 <tr>{% for t, n in counts.items() %}<th>{{ t }}</th>{% endfor %}</tr>
