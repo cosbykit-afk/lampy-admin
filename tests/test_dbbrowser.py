@@ -153,3 +153,121 @@ def test_cell_text():
     assert dbbrowser.cell_text(None) == ""
     assert dbbrowser.cell_text(b"\x00\xff") == "00ff"
     assert dbbrowser.cell_text("a,b") == "a,b"
+
+
+# --------------------------------------------------------------------------
+# T-W1-U2: run_sql / browse_rows DB-shape regressions (mocked connections)
+# --------------------------------------------------------------------------
+
+class _FakeCursorNoResult:
+    """Mimics psycopg3 after DDL / DML without RETURNING: no result set."""
+    description = None
+
+    def fetchmany(self, n):
+        raise AssertionError("fetchmany called with no result set")
+
+    def fetchone(self):
+        raise AssertionError("fetchone called with no result set")
+
+
+class _FakeCursorRows:
+    def __init__(self, cols, rows):
+        self.description = [type("D", (), {"name": c})() for c in cols]
+        self._rows = list(rows)
+
+    def fetchmany(self, n):
+        out, self._rows = self._rows[:n], self._rows[n:]
+        return out
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+    def fetchall(self):
+        out, self._rows = self._rows, []
+        return out
+
+
+class _FakeConn:
+    def __init__(self, cursor):
+        self._cursor = cursor
+        self.committed = False
+        self.statements = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def execute(self, q, params=None):
+        self.statements.append(str(q))
+        return self._cursor
+
+    def commit(self):
+        self.committed = True
+
+
+def _run_with(cursor, sqltext, allow_write=False):
+    conn = _FakeConn(cursor)
+    with patch.object(dbbrowser, "_connect", return_value=conn), \
+         patch.object(dbbrowser, "checked_dbname", return_value="scratch"):
+        return dbbrowser.run_sql("scratch", sqltext,
+                                 allow_write=allow_write), conn
+
+
+def test_run_sql_write_without_result_set():
+    # CREATE TABLE has no result set: must not call fetch*, must commit.
+    (cols, rows, truncated, mode), conn = _run_with(
+        _FakeCursorNoResult(), "CREATE TABLE t(a int)", allow_write=True)
+    assert (cols, rows, truncated, mode) == ([], [], False, "write")
+    assert conn.committed is True
+
+
+def test_run_sql_write_refused_without_allow_write():
+    with pytest.raises(PermissionError):
+        _run_with(_FakeCursorNoResult(), "DROP TABLE t")
+
+
+def test_run_sql_read_with_result_set():
+    (cols, rows, truncated, mode), conn = _run_with(
+        _FakeCursorRows(["a"], [(1,), (2,)]), "SELECT a FROM t")
+    assert cols == ["a"]
+    assert rows == [(1,), (2,)]
+    assert truncated is False
+    assert mode == "read"
+    assert conn.committed is False
+
+
+def test_browse_rows_view_has_no_order_by_ctid():
+    seen = {}
+
+    class _Conn(_FakeConn):
+        def execute(self, q, params=None):
+            seen["sql"] = str(q)
+            return self._cursor
+
+    conn = _Conn(_FakeCursorRows(["a"], [(1,)]))
+    with patch.object(dbbrowser, "_connect", return_value=conn), \
+         patch.object(dbbrowser, "checked_relation",
+                      return_value=("public", "v")), \
+         patch.object(dbbrowser, "relation_kind", return_value="v"):
+        cols, rows = dbbrowser.browse_rows("scratch", "public", "v", 1)
+    assert cols == ["a"] and rows == [(1,)]
+    assert "ctid" not in seen["sql"].lower()
+
+
+def test_browse_rows_table_orders_by_ctid():
+    seen = {}
+
+    class _Conn(_FakeConn):
+        def execute(self, q, params=None):
+            seen["sql"] = str(q)
+            return self._cursor
+
+    conn = _Conn(_FakeCursorRows(["a"], [(1,)]))
+    with patch.object(dbbrowser, "_connect", return_value=conn), \
+         patch.object(dbbrowser, "checked_relation",
+                      return_value=("public", "t")), \
+         patch.object(dbbrowser, "relation_kind", return_value="r"):
+        dbbrowser.browse_rows("scratch", "public", "t", 1)
+    assert "order by ctid" in seen["sql"].lower()
