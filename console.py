@@ -752,6 +752,76 @@ def admin_backup():
 
 
 # --------------------------------------------------------------------------
+# Gwen chat (W-2) — natural-language admin via Ollama
+# --------------------------------------------------------------------------
+
+@app.get("/gwen")
+@auth.admin_required
+def gwen_page():
+    """Gwen chat tab."""
+    return render_template("gwen.html", tab="gwen")
+
+
+@app.post("/api/gwen/chat")
+@auth.admin_required
+def gwen_chat_api():
+    """JSON chat endpoint. Returns {"response": str} or
+    {"response": str, "pending_action": {...}} when Gwen proposes a
+    control action (Kit confirms via /api/gwen/confirm)."""
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    data = request.get_json(silent=True) or {}
+    message = data.get("message", "")
+    history = data.get("history", [])
+    if not isinstance(history, list):
+        history = []
+    try:
+        import gwen_chat
+        result = gwen_chat.chat(message, history,
+                                auth.current_console_user())
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": "chat failed: %s" % e}), 500
+    out = {"response": result.get("text", "")}
+    if result.get("pending_action"):
+        out["pending_action"] = result["pending_action"]
+    return jsonify(out)
+
+
+@app.post("/api/gwen/confirm")
+@auth.admin_required
+def gwen_confirm():
+    """Execute a pending control action. The ONLY code path from a
+    pending-action token to supervisor_control.
+
+    Requires: valid single-use token, the issuing admin's session, and a
+    fresh JSON CSRF token. Re-checks the target (never "console") even
+    with a valid token."""
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    data = request.get_json(silent=True) or {}
+    token = data.get("token", "")
+    import gwen_chat
+    rec = gwen_chat.consume_pending_action(token)
+    if rec is None:
+        return jsonify({"error": "unknown or expired token"}), 410
+    me = auth.current_console_user() or {}
+    if rec["user_id"] != me.get("id"):
+        return jsonify({"error": "token bound to another session"}), 403
+    # Defense in depth: re-check the target even with a valid token.
+    if rec["name"] == "console" or rec["name"] not in gwen_chat.MANAGEABLE:
+        gwen_chat.audit_log("refused", user=me, action=rec["action"],
+                            target=rec["name"],
+                            token_id=rec["token_id"],
+                            reason="target re-check failed")
+        return jsonify({"error": "refused"}), 403
+    ok, output = stackmod.supervisor_control(rec["action"], rec["name"])
+    gwen_chat.audit_log("executed", user=me, action=rec["action"],
+                        target=rec["name"], token_id=rec["token_id"], ok=ok)
+    return jsonify({"ok": ok, "message": output,
+                    "action": rec["action"], "name": rec["name"]})
+
+
+# --------------------------------------------------------------------------
 # Logon — forum accounts (users table, Werkzeug hashes)
 # --------------------------------------------------------------------------
 
