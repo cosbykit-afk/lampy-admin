@@ -1,0 +1,47 @@
+name: Feature Request
+description: Suggest a new feature for the Lampy Administration App
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe what you'd like to see.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use Case
+      description: What problem does this solve? Who needs it?
+      placeholder: "When managing mail users, I need to..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How should it work?
+      placeholder: "Add a button on the Mail Admin tab that..."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any other approaches you've thought about?
+  - type: dropdown
+    id: module
+    attributes:
+      label: Related Module
+      options:
+        - Stack / Health
+        - Forum
+        - Database (W-1)
+        - Mail / James (W-4)
+        - Gwen Chat (W-2)
+        - Ollama (W-3)
+        - HTTPD
+        - R Theory
+        - Windows Tools
+        - Signup (W-8)
+        - Worker (W-5)
+        - Other / New
