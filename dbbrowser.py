@@ -166,6 +166,26 @@ def _ident(schema, table):
                                    sql.Identifier(table))
 
 
+# pg_class.relkind values that physically store rows (and therefore have
+# a ctid system column): ordinary tables, materialized views, and
+# partitioned tables. Views and foreign tables have no ctid.
+_CTID_KINDS = frozenset(("r", "m", "p"))
+
+
+def relation_kind(dbname, schema, table):
+    """One-letter pg_class.relkind for an allowlisted relation."""
+    schema, table = checked_relation(dbname, schema, table)
+    with _connect(dbname) as conn:
+        row = conn.execute(
+            "SELECT c.relkind FROM pg_class c "
+            "JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname = %s AND c.relname = %s",
+            (schema, table)).fetchone()
+    if not row:
+        raise LookupError("unknown table: %r" % (table,))
+    return row[0]
+
+
 def table_metadata(dbname, schema, table):
     """Columns + row-count estimate + on-disk size (DB-05).
 
@@ -201,12 +221,19 @@ def table_metadata(dbname, schema, table):
 
 def browse_rows(dbname, schema, table, page, per_page=ROWS_PER_PAGE):
     """(columns, rows) for one page. ORDER BY ctid gives a stable,
-    type-agnostic order on any table — no primary key needed."""
+    type-agnostic order on any physical table — no primary key needed.
+    Views and foreign tables have no ctid, so they are read without an
+    ORDER BY (page order on those is not guaranteed)."""
     schema, table = checked_relation(dbname, schema, table)
     page = int(page)
     offset = (page - 1) * per_page
-    q = sql.SQL("SELECT * FROM {}.{} ORDER BY ctid LIMIT %s OFFSET %s"
-                ).format(sql.Identifier(schema), sql.Identifier(table))
+    if relation_kind(dbname, schema, table) in _CTID_KINDS:
+        order = sql.SQL(" ORDER BY ctid")
+    else:
+        order = sql.SQL("")
+    q = sql.SQL("SELECT * FROM {}.{}").format(
+        sql.Identifier(schema), sql.Identifier(table)) + order + \
+        sql.SQL(" LIMIT %s OFFSET %s")
     with _connect(dbname) as conn:
         conn.execute("SET LOCAL statement_timeout = '%s'"
                      % STATEMENT_TIMEOUT)
@@ -314,10 +341,14 @@ def run_sql(dbname, sqltext, allow_write=False):
             _apply_guards(conn, mode)
             cur = conn.execute(sqltext)     # psycopg3 also rejects
                                             # multi-statement here
-            cols = [d.name for d in cur.description] \
-                if cur.description else []
-            rows = cur.fetchmany(RESULT_ROW_CAP)
-            truncated = cur.fetchone() is not None
+            if cur.description is None:
+                # DDL / DML without RETURNING: no result set exists;
+                # fetch*() would raise ProgrammingError.
+                cols, rows, truncated = [], [], False
+            else:
+                cols = [d.name for d in cur.description]
+                rows = cur.fetchmany(RESULT_ROW_CAP)
+                truncated = cur.fetchone() is not None
             if mode == "write":
                 conn.commit()
             return cols, rows, truncated, mode
