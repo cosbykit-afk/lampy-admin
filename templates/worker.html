@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Worker</h1>
+<p class="muted">pgai vectorizer worker: process status and configured vectorizers.</p>
+<div id="werror" class="err" hidden></div>
+
+<h2>Process</h2>
+<table aria-label="Worker process status">
+  <tbody>
+    <tr><th scope="row">State</th><td id="wstate">…</td></tr>
+    <tr><th scope="row">Detail</th><td id="wdetail">…</td></tr>
+  </tbody>
+</table>
+
+<h3>Recent log</h3>
+<pre id="wlog" class="logbox" tabindex="0" aria-label="Worker log, last 30 lines">loading…</pre>
+
+<h2>Vectorizers</h2>
+<div id="vecs"></div>
+
+<h2>Jobs</h2>
+<p id="jobs" class="muted">loading…</p>
+
+<script>
+(function () {
+  var errBox = document.getElementById('werror');
+
+  function load() {
+    fetch('/api/worker/status').then(function (r) { return r.json(); })
+      .then(function (d) {
+        document.getElementById('wstate').textContent = d.status.state;
+        document.getElementById('wdetail').textContent = d.status.detail || '—';
+        document.getElementById('wlog').textContent =
+          (d.log || []).join('\n') || '(no log lines)';
+      }).catch(function (e) {
+        errBox.hidden = false;
+        errBox.textContent = 'Worker status: ' + e;
+      });
+
+    fetch('/api/worker/vectorizers').then(function (r) { return r.json(); })
+      .then(function (d) {
+        var div = document.getElementById('vecs');
+        div.textContent = '';
+        if (d.error) {
+          errBox.hidden = false;
+          errBox.textContent = 'Vectorizers: ' + d.error;
+          return;
+        }
+        if (!d.vectorizers.length) {
+          // VEC-07 empty state: plain words + setup pointer, not a blank page.
+          var p = document.createElement('p');
+          p.textContent = 'No vectorizers configured. The pgai extension is ' +
+            'not installed in any database, so the worker has no work. ' +
+            'To set up vectorization (entire database, 768 native dimensions, ' +
+            'no projection — per the approved design), install the pgai ' +
+            'extension and create vectorizers with ai.create_vectorizer().';
+          div.appendChild(p);
+        } else {
+          var ul = document.createElement('ul');
+          d.vectorizers.forEach(function (v) {
+            var li = document.createElement('li');
+            li.textContent = v.database + ': ' + v.source + ' → ' +
+              v.target + ' (' + v.model + ', ' + v.dimensions + ' dims)';
+            ul.appendChild(li);
+          });
+          div.appendChild(ul);
+        }
+        var j = d.jobs || {};
+        document.getElementById('jobs').textContent =
+          'pending: ' + (j.pending || 0) +
+          ', processing: ' + (j.processing || 0) +
+          ', done: ' + (j.done || 0) +
+          ', failed: ' + (j.failed || 0) +
+          (j.note ? ' — ' + j.note : '');
+      }).catch(function (e) {
+        errBox.hidden = false;
+        errBox.textContent = 'Vectorizers: ' + e;
+      });
+  }
+
+  load();
+})();
+</script>
+{% endblock %}
