@@ -992,6 +992,42 @@ def mailadmin_mailboxes():
 
 
 # --------------------------------------------------------------------------
+# Worker (W-5) — pgai vectorizer worker status, admin-only
+# --------------------------------------------------------------------------
+
+@app.get("/worker")
+@auth.admin_required
+def worker_index():
+    return render_template("worker.html", tab="worker",
+                           csrf_token=security.new_csrf_token())
+
+
+@app.get("/api/worker/status")
+@auth.admin_required
+def worker_status_api():
+    import worker_admin
+    ok, status = worker_admin.worker_status()
+    ok2, log = worker_admin.worker_log_tail(30)
+    return jsonify({
+        "status": status if ok else {"state": "UNKNOWN", "detail": status},
+        "log": log if ok2 else [log],
+    })
+
+
+@app.get("/api/worker/vectorizers")
+@auth.admin_required
+def worker_vectorizers():
+    import worker_admin
+    ok, vecs = worker_admin.list_vectorizers()
+    ok2, counts = worker_admin.job_counts()
+    return jsonify({
+        "vectorizers": vecs if ok else [],
+        "error": None if ok else vecs,
+        "jobs": counts if ok2 else {},
+    })
+
+
+# --------------------------------------------------------------------------
 # Logon — forum accounts (users table, Werkzeug hashes)
 # --------------------------------------------------------------------------
 
