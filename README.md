@@ -26,7 +26,7 @@ terminal users.
 | W-3 | Ollama model management (list/pull/delete/test-chat/switch, disk usage) | Implemented, mocked-tested |
 | W-4 | Mail Admin tab (James users, queues, mailboxes via WebAdmin) | Implemented, mocked-tested, live CRUD verified |
 | W-5 | pgai Worker tab (process status, vectorizer catalog, VEC-07 empty state) | Implemented, mocked-tested |
-| W-6 | Full keyboard accessibility audit | Pending |
+| W-6 | Full keyboard accessibility audit (static audit + focus styles + label fixes) | Complete |
 | W-7 | Final verification against acceptance criteria | Pending |
 
 Each module is implemented, tested, and debugged on its own before the
