@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Database: {{ dbname }}</h1>
+<p class="muted"><a href="/db">all databases</a> &middot;
+<a href="/db/{{ dbname }}/sql">open SQL box</a></p>
+{% for schema, tables in schemas %}
+<h2>Schema: {{ schema }}</h2>
+<table>
+<tr><th>Table</th><th>Type</th><th></th></tr>
+{% for tname, ttype in tables %}
+<tr><td><code>{{ tname }}</code></td><td>{{ ttype }}</td>
+    <td><a href="/db/{{ dbname }}/{{ schema }}/{{ tname }}">browse</a></td></tr>
+{% endfor %}
+</table>
+{% else %}
+<p class="error">No user schemas found in this database.</p>
+{% endfor %}
+{% endblock %}
