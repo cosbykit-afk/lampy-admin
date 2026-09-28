@@ -60,7 +60,8 @@ Users, queues, and mailboxes. All actions are admin-only.</p>
         return;
       }
       errBox.hidden = true;
-      res.body.users.forEach(function (u) {
+      res.body.users.forEach(function (entry) {
+        var u = (entry && entry.username) || entry;
         var tr = document.createElement('tr');
         var td = document.createElement('td');
         td.textContent = u;
