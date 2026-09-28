@@ -27,6 +27,8 @@ terminal users.
 | W-4 | Mail Admin tab (James users, queues, mailboxes via WebAdmin) | Implemented, mocked-tested, live CRUD verified |
 | W-5 | pgai Worker tab (process status, vectorizer catalog, VEC-07 empty state) | Implemented, mocked-tested |
 | W-6 | Full keyboard accessibility audit (static audit + focus styles + label fixes) | Complete |
+| W-8 | User signup (registration against forum users table, werkzeug hashes) | Implemented, tested (9 passing), live |
+| W-9 | HTTPD tab (Apache status, config test, vhosts, modules, logs, restart) | Implemented, tested (8 passing), live |
 | W-7 | Final verification against acceptance criteria | Pending |
 
 Each module is implemented, tested, and debugged on its own before the
