@@ -24,8 +24,8 @@ terminal users.
 | W-0 | James WebAdmin stabilization (port 8001, auth) | Pending |
 | W-2 | Gwen chat tab (repaired: pending-action tokens, separate confirm endpoint, audit log) | Implemented, mocked-tested (live tests need gwen:latest) |
 | W-3 | Ollama model management (list/pull/delete/test-chat/switch, disk usage) | Implemented, mocked-tested |
-| W-4 | Mail Admin tab | Pending |
-| W-5 | pgai Worker tab | Pending |
+| W-4 | Mail Admin tab (James users, queues, mailboxes via WebAdmin) | Implemented, mocked-tested, live CRUD verified |
+| W-5 | pgai Worker tab (process status, vectorizer catalog, VEC-07 empty state) | Implemented, mocked-tested |
 | W-6 | Full keyboard accessibility audit | Pending |
 | W-7 | Final verification against acceptance criteria | Pending |
 
