@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ msg.subject }}</h1>
+<p class="muted">From: {{ msg.from }}<br>To: {{ msg.to }}<br>Date: {{ msg.date }}
+&middot; <a href="/mail">back to inbox</a></p>
+<div class="post"><div class="postbody">{{ msg.body }}</div></div>
+{% endblock %}
