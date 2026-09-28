@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Metrics</h1>
+<p class="muted">From the <code>forum_daily</code> continuous aggregate (events per day).
+Note: the aggregate's refresh policy is commented out in the schema, so recent days may lag until it is refreshed.</p>
+<table>
+<tr><th>Day</th><th>Event</th><th>Count</th></tr>
+{% for day, events in days %}
+  {% for ev, n in events.items() %}
+<tr><td>{{ day }}</td><td><code>{{ ev }}</code></td><td>{{ n }}</td></tr>
+  {% endfor %}
+{% else %}
+<tr><td colspan="3" class="muted">No metrics yet.</td></tr>
+{% endfor %}
+</table>
+{% endblock %}
