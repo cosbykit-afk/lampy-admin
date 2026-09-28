@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>HTTPD (Apache)</h1>
+
+<h2>Service status</h2>
+<div id="httpd-status"><p class="muted">Loading…</p></div>
+<p>
+  <button id="btn-restart" data-csrf="{{ csrf_token }}">Restart Apache</button>
+  <span id="restart-result" class="muted"></span>
+</p>
+
+<h2>Configuration</h2>
+<p><button id="btn-configtest" data-csrf="{{ csrf_token }}">Test configuration</button>
+<span id="configtest-result" class="muted"></span></p>
+<pre id="configtest-output" class="log"></pre>
+
+<h2>Virtual hosts</h2>
+<div id="vhosts"><p class="muted">Loading…</p></div>
+
+<h2>Loaded modules</h2>
+<div id="modules"><p class="muted">Loading…</p></div>
+
+<h2>Logs</h2>
+<p>
+  <button data-log="access" class="logbtn">Access log</button>
+  <button data-log="error" class="logbtn">Error log</button>
+</p>
+<pre id="log-output" class="log">Select a log above.</pre>
+
+<script>
+function csrf() {
+  return document.querySelector('[data-csrf]').dataset.csrf;
+}
+async function loadStatus() {
+  const r = await fetch('/api/httpd/status');
+  const d = await r.json();
+  document.getElementById('httpd-status').innerHTML =
+    '<p>State: <strong>' + esc(d.state) + '</strong> ' + esc(d.detail || '') + '</p>';
+}
+async function loadVhosts() {
+  const r = await fetch('/api/httpd/vhosts');
+  const d = await r.json();
+  if (!d.vhosts.length) {
+    document.getElementById('vhosts').innerHTML = '<p class="muted">No virtual hosts found.</p>';
+    return;
+  }
+  let h = '<table><tr><th>Port</th><th>ServerName</th><th>Config</th></tr>';
+  d.vhosts.forEach(function(v) {
+    h += '<tr><td>' + esc(v.port) + '</td><td>' + esc(v.servername) +
+         '</td><td>' + esc(v.config) + ':' + esc(v.line) + '</td></tr>';
+  });
+  document.getElementById('vhosts').innerHTML = h + '</table>';
+}
+async function loadModules() {
+  const r = await fetch('/api/httpd/modules');
+  const d = await r.json();
+  document.getElementById('modules').innerHTML =
+    '<p class="muted">' + d.modules.length + ' modules: ' +
+    d.modules.map(esc).join(', ') + '</p>';
+}
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+  });
+}
+document.getElementById('btn-configtest').addEventListener('click', async function() {
+  const r = await fetch('/api/httpd/configtest', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json',
+              'X-CSRF-Token': csrf()},
+    body: '{}'
+  });
+  const d = await r.json();
+  document.getElementById('configtest-result').textContent =
+    d.ok ? 'Syntax OK' : 'Config error';
+  document.getElementById('configtest-output').textContent = d.output || '';
+});
+document.getElementById('btn-restart').addEventListener('click', async function() {
+  if (!confirm('Restart Apache? Brief outage for web requests.')) return;
+  const el = document.getElementById('restart-result');
+  el.textContent = 'Restarting…';
+  const r = await fetch('/api/httpd/restart', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json',
+              'X-CSRF-Token': csrf()},
+    body: '{}'
+  });
+  const d = await r.json();
+  el.textContent = d.ok ? 'Restart requested.' : ('Failed: ' + (d.error || ''));
+  setTimeout(loadStatus, 3000);
+});
+document.querySelectorAll('.logbtn').forEach(function(btn) {
+  btn.addEventListener('click', async function() {
+    const r = await fetch('/api/httpd/log/' + btn.dataset.log);
+    const d = await r.json();
+    document.getElementById('log-output').textContent =
+      d.ok ? d.text : ('Error: ' + d.error);
+  });
+});
+loadStatus(); loadVhosts(); loadModules();
+</script>
+{% endblock %}
