@@ -65,3 +65,19 @@ button:hover, .btn:hover { background: #3a8a62; }
 a:focus-visible, button:focus-visible, input:focus-visible,
 select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
   outline: 2px solid #6db3f2; outline-offset: 2px; }
+
+/* Mobile responsive (iPhone Safari) */
+@media (max-width: 700px) {
+  .topbar { flex-wrap: wrap; gap: 0.6em; padding: 0.5em 0.7em; }
+  .brand { font-size: 1em; }
+  .tabs { order: 3; width: 100%; gap: 0.15em; }
+  .tabs a { padding: 0.35em 0.6em; font-size: 0.92em; }
+  .userbox { margin-left: 0; font-size: 0.92em; }
+  main { padding: 0.8em 0.7em 2em; max-width: 100%; overflow-x: hidden; }
+  h1 { font-size: 1.25em; }
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cards { grid-template-columns: 1fr; }
+  input[type=text], input[type=password], textarea, select {
+    width: 100%; box-sizing: border-box; font-size: 16px; }
+  button, .btn { font-size: 16px; }
+}
