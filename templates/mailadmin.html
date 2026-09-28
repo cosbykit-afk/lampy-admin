@@ -5,9 +5,24 @@
 Users, queues, and mailboxes. All actions are admin-only.</p>
 <div id="maerror" class="err" hidden></div>
 
+<div id="setup-section" hidden>
+  <h2>No mail administrator assigned</h2>
+  <p>Create the first mail administrator account. This user will be able to
+  manage mail users and promote others to administrator or moderator.</p>
+  <form id="setupform">
+    <label for="adminuser">Administrator email</label>
+    <input type="text" id="adminuser" required autocomplete="off"
+           placeholder="admin@localhost">
+    <label for="adminpass">Password (min 8 chars)</label>
+    <input type="password" id="adminpass" required autocomplete="new-password">
+    <button type="submit">Create administrator</button>
+  </form>
+</div>
+
+<div id="admin-ui" hidden>
 <h2>Users</h2>
 <table aria-label="Mail users">
-  <thead><tr><th>Username</th><th>Actions</th></tr></thead>
+  <thead><tr><th>Username</th><th>Role</th><th>Actions</th></tr></thead>
   <tbody id="userrows"></tbody>
 </table>
 
@@ -30,6 +45,7 @@ Users, queues, and mailboxes. All actions are admin-only.</p>
   <button type="submit">List mailboxes</button>
 </form>
 <ul id="mboxlist"></ul>
+</div><!-- admin-ui -->
 
 <script>
 (function () {
@@ -51,6 +67,62 @@ Users, queues, and mailboxes. All actions are admin-only.</p>
     errBox.textContent = msg;
   }
 
+  var roleMap = {};
+
+  function loadRoles(cb) {
+    api('/api/mailadmin/roles').then(function (res) {
+      roleMap = {};
+      if (res.status === 200) {
+        res.body.roles.forEach(function (r) { roleMap[r.username] = r.role; });
+      }
+      if (cb) cb();
+    });
+  }
+
+  function checkSetup() {
+    api('/api/mailadmin/setup-needed').then(function (res) {
+      if (res.status === 200 && res.body.setup_needed) {
+        document.getElementById('setup-section').hidden = false;
+        document.getElementById('admin-ui').hidden = true;
+      } else {
+        document.getElementById('setup-section').hidden = true;
+        document.getElementById('admin-ui').hidden = false;
+        loadRoles(function () { loadUsers(); loadQueues(); });
+      }
+    }).catch(function (e) { showError('Setup check failed: ' + e); });
+  }
+
+  document.getElementById('setupform').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var u = document.getElementById('adminuser').value.trim();
+    var p = document.getElementById('adminpass').value;
+    if (!u || !p) return;
+    api('/api/mailadmin/setup-admin', { method: 'POST',
+      body: JSON.stringify({ username: u, password: p }) })
+      .then(function (res) {
+        if (res.status === 200) {
+          alert('Administrator "' + u + '" created.');
+          checkSetup();
+        } else {
+          alert('Setup failed: ' + (res.body.error || res.status));
+        }
+      });
+  });
+
+  function setRole(u, role) {
+    var action = role ? 'promote "' + u + '" to ' + role : 'demote "' + u + '"';
+    if (!window.confirm('Are you sure you want to ' + action + '?')) return;
+    api('/api/mailadmin/set-role', { method: 'POST',
+      body: JSON.stringify({ username: u, role: role }) })
+      .then(function (res) {
+        if (res.status === 200) {
+          loadRoles(loadUsers);
+        } else {
+          alert('Role change failed: ' + (res.body.error || res.status));
+        }
+      });
+  }
+
   function loadUsers() {
     api('/api/mailadmin/users').then(function (res) {
       var tb = document.getElementById('userrows');
@@ -66,7 +138,40 @@ Users, queues, and mailboxes. All actions are admin-only.</p>
         var td = document.createElement('td');
         td.textContent = u;
         tr.appendChild(td);
+        // Role column
+        var tdRole = document.createElement('td');
+        var role = roleMap[u] || 'user';
+        tdRole.textContent = role;
+        if (role === 'admin') tdRole.className = 'role-admin';
+        else if (role === 'moderator') tdRole.className = 'role-mod';
+        tr.appendChild(tdRole);
         var td2 = document.createElement('td');
+        // Promote/demote buttons (only for non-admin or demotable)
+        if (role !== 'admin') {
+          var mkAdmin = document.createElement('button');
+          mkAdmin.type = 'button';
+          mkAdmin.textContent = 'Make admin';
+          mkAdmin.addEventListener('click', function () { setRole(u, 'admin'); });
+          td2.appendChild(mkAdmin);
+          td2.appendChild(document.createTextNode(' '));
+        }
+        if (role !== 'moderator') {
+          var mkMod = document.createElement('button');
+          mkMod.type = 'button';
+          mkMod.textContent = 'Make moderator';
+          mkMod.addEventListener('click', function () { setRole(u, 'moderator'); });
+          td2.appendChild(mkMod);
+          td2.appendChild(document.createTextNode(' '));
+        }
+        if (role !== 'user') {
+          var demote = document.createElement('button');
+          demote.type = 'button';
+          demote.textContent = 'Demote';
+          demote.className = 'danger';
+          demote.addEventListener('click', function () { setRole(u, ''); });
+          td2.appendChild(demote);
+          td2.appendChild(document.createTextNode(' '));
+        }
         var del = document.createElement('button');
         del.type = 'button';
         del.textContent = 'Remove';
@@ -154,8 +259,7 @@ Users, queues, and mailboxes. All actions are admin-only.</p>
       });
   });
 
-  loadUsers();
-  loadQueues();
+  checkSetup();
 })();
 </script>
 {% endblock %}
