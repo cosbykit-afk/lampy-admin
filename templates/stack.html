@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Stack</h1>
+<p class="muted">Live probes from inside the <code>lampy</code> WSL distro (localhost).
+A green card answered for real; a red card failed for real. Supervisor state comes from
+<code>supervisorctl</code> on the distro's real conf — no Docker involved.</p>
+<div class="cards">
+{% for c in cards %}
+  <div class="card {{ 'ok' if c.ok is true else 'bad' }}">
+    <div class="cardhead">
+      <span class="dot {{ 'green' if c.ok is true else 'red' }}"></span>
+      <strong>{{ c.label }}</strong>
+    </div>
+    <div class="detail">{{ c.detail }}</div>
+    {% if c.port %}<div class="port">port {{ c.port }}</div>{% endif %}
+    <div class="port">supervisor: <strong>{{ c.svc_state }}</strong>{% if c.svc_detail %} — {{ c.svc_detail }}{% endif %}</div>
+    {% if console_user and console_user.is_admin %}
+    <div class="svcctl">
+      <a href="/stack/logs/{{ c.name }}">logs</a>
+      <form method="post" action="/stack/control/{{ c.name }}/restart" class="inline"
+            onsubmit="return confirm('Restart {{ c.name }}?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="linkbtn">restart</button>
+      </form>
+      <form method="post" action="/stack/control/{{ c.name }}/stop" class="inline"
+            onsubmit="return confirm('Stop {{ c.name }}?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="linkbtn">stop</button>
+      </form>
+      <form method="post" action="/stack/control/{{ c.name }}/start" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="linkbtn">start</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+{% endfor %}
+</div>
+{% if console_user and console_user.is_admin %}
+<h2>Whole stack</h2>
+<p class="muted">Acts on the seven stack programs via <code>supervisorctl</code>.
+The console itself is excluded — use the separate button below to restart it.</p>
+<p>
+<form method="post" action="/stack/control-all/start" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Start all</button>
+</form>
+<form method="post" action="/stack/control-all/restart" class="inline"
+      onsubmit="return confirm('Restart all seven stack services?');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Restart all</button>
+</form>
+<form method="post" action="/stack/control-all/stop" class="inline"
+      onsubmit="return confirm('STOP all seven stack services? The console stays up.');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Stop all</button>
+</form>
+</p>
+<h2>Console itself</h2>
+<p>
+<form method="post" action="/stack/control/console/restart" class="inline"
+      onsubmit="return confirm('Restart the console? This page will drop and reload.');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">Restart console</button>
+</form>
+</p>
+{% endif %}
+<p><a href="/api/stack">raw probe JSON</a> &middot; <a href="javascript:location.reload()">re-probe</a></p>
+{% endblock %}
