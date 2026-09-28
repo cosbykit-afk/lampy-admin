@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Docs</h1>
+<table>
+<tr><th>Slug</th><th>Title</th><th>Diagram</th></tr>
+{% for d in docs %}
+<tr><td><a href="/docs/{{ d.slug }}">{{ d.slug }}</a></td><td>{{ d.title }}</td><td>{{ d.diagram_kind or "" }}</td></tr>
+{% else %}
+<tr><td colspan="3" class="muted">No docs in the forum database.</td></tr>
+{% endfor %}
+</table>
+{% endblock %}
