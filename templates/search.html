@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Search</h1>
+<form method="get" action="/search">
+  <input type="text" name="q" size="60" value="{{ q }}">
+  <button type="submit">Search</button>
+</form>
+<p class="muted">Mode: <strong>{{ mode }}</strong> — {{ vec_note }}</p>
+{% for r in results %}
+<div class="post">
+  <div class="posthead"><a href="/forum/thread/{{ r.thread_id }}">{{ r.thread_title }}</a>
+  <span class="muted">— {{ r.username }}, {{ r.created_at }}</span></div>
+  <div class="postbody">{{ r.body[:600] }}{% if r.body|length > 600 %}…{% endif %}</div>
+</div>
+{% else %}
+{% if q %}<p class="muted">No matches.</p>{% endif %}
+{% endfor %}
+{% endblock %}
