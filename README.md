@@ -22,7 +22,7 @@ terminal users.
 | Base console | Stack/Forum/Write/Search/Docs/Metrics/Mail/Admin tabs, SSH admin on 8022 | Implemented |
 | W-1 | Generic PostgreSQL database browser tab (read-only by default, per-session write confirm, 30s statement timeout, CSV export) | Implemented, unit-tested |
 | W-0 | James WebAdmin stabilization (port 8001, auth) | Pending |
-| W-2 | Gwen chat tab (repaired: pending-action tokens, separate confirm endpoint) | Pending |
+| W-2 | Gwen chat tab (repaired: pending-action tokens, separate confirm endpoint, audit log) | Implemented, mocked-tested (live tests need gwen:latest) |
 | W-3 | Ollama model management tab | Pending |
 | W-4 | Mail Admin tab | Pending |
 | W-5 | pgai Worker tab | Pending |
