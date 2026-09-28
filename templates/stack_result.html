@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Stack control</h1>
+{% if all_results is defined %}
+<p class="muted">{{ action }} on the seven stack programs (console excluded):</p>
+<table>
+<tr><th>Service</th><th>Result</th><th>Detail</th></tr>
+{% for r in all_results %}
+<tr>
+  <td>{{ r.name }}</td>
+  <td class="{{ 'ok' if r.ok else 'bad' }}">{{ "ok" if r.ok else "FAILED" }}</td>
+  <td>{{ r.message }}</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p class="{{ 'ok' if ok else 'bad' }}"><strong>{{ action }} {{ name }}: {{ "ok" if ok else "FAILED" }}</strong></p>
+<pre>{{ message }}</pre>
+{% endif %}
+<p><a href="/stack">Back to Stack</a></p>
+{% endblock %}
