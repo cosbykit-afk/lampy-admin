@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Forum</h1>
+<h2>Categories</h2>
+<table>
+<tr><th>Category</th><th>Threads</th><th>Posts</th></tr>
+{% for c in cats %}
+<tr>
+  <td><a href="/forum/category/{{ c.id }}"><strong>{{ c.name }}</strong></a><br>
+      <span class="muted">{{ c.description }}</span></td>
+  <td>{{ c.thread_count }}</td><td>{{ c.post_count }}</td>
+</tr>
+{% endfor %}
+</table>
+<h2>Latest threads</h2>
+<table>
+<tr><th>Thread</th><th>Category</th><th>By</th><th>Posts</th><th>Last post</th></tr>
+{% for t in latest %}
+<tr>
+  <td><a href="/forum/thread/{{ t.id }}">{{ t.title }}</a></td>
+  <td>{{ t.cat_name }}</td><td>{{ t.username }}</td><td>{{ t.post_count }}</td>
+  <td>{{ t.last_post_at }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}
