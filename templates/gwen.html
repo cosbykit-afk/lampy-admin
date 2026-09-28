@@ -124,4 +124,172 @@ She can never stop or restart this console.</p>
   input.focus();
 })();
 </script>
+
+<hr>
+<h2>Ollama models</h2>
+<p class="muted">Installed models on this machine's Ollama server.
+<span id="diskuse"></span> Gwen currently chats with <strong id="gwenmodel">…</strong>.</p>
+<div id="modelerror" class="err" hidden></div>
+<table id="modeltable" aria-label="Installed Ollama models">
+  <thead><tr><th>Model</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
+  <tbody id="modelrows"></tbody>
+</table>
+
+<h3>Pull a model</h3>
+<form id="pullform">
+  <label for="pullname">Model name (e.g. <code>llama3.1:8b</code>)</label><br>
+  <input type="text" id="pullname" size="40" required>
+  <button type="submit">Pull</button>
+  <span id="pullstatus" class="muted" aria-live="polite"></span>
+</form>
+
+<h3>Test chat</h3>
+<form id="testform">
+  <label for="testmodel">Model</label>
+  <select id="testmodel"></select><br><br>
+  <label for="testprompt">Prompt</label><br>
+  <textarea id="testprompt" rows="3" cols="70" required></textarea><br>
+  <button type="submit">Send</button>
+</form>
+<div id="testout" class="chatlog" aria-live="polite"></div>
+
+<script>
+(function () {
+  var CSRF = '{{ csrf_token }}';
+  var rows = document.getElementById('modelrows');
+  var errBox = document.getElementById('modelerror');
+
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign(
+      { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+      opts.headers || {});
+    return fetch(path, opts).then(function (r) {
+      return r.json().then(function (d) { return { status: r.status, body: d }; });
+    });
+  }
+
+  function esc(s) { return String(s); }  // textContent used everywhere below
+
+  function loadModels() {
+    api('/api/gwen/models').then(function (res) {
+      var d = res.body;
+      if (res.status !== 200) {
+        errBox.hidden = false;
+        errBox.textContent = 'Ollama: ' + (d.error || ('HTTP ' + res.status));
+        return;
+      }
+      errBox.hidden = true;
+      document.getElementById('diskuse').textContent =
+        'Model store: ' + d.disk_total + '.';
+      document.getElementById('gwenmodel').textContent = d.gwen_model;
+      rows.textContent = '';
+      var sel = document.getElementById('testmodel');
+      sel.textContent = '';
+      d.models.forEach(function (m) {
+        var tr = document.createElement('tr');
+        [['name', m.name], ['size', m.size], ['modified', m.modified]]
+          .forEach(function (pair) {
+            var td = document.createElement('td');
+            td.textContent = pair[1];
+            tr.appendChild(td);
+          });
+        var td = document.createElement('td');
+        var useBtn = document.createElement('button');
+        useBtn.type = 'button';
+        useBtn.textContent = m.name === d.gwen_model ? 'In use' : 'Use for Gwen';
+        useBtn.disabled = (m.name === d.gwen_model);
+        useBtn.addEventListener('click', function () { setModel(m.name); });
+        var delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.textContent = 'Delete';
+        delBtn.className = 'danger';
+        delBtn.disabled = (m.name === d.gwen_model);
+        delBtn.addEventListener('click', function () { deleteModel(m.name); });
+        td.appendChild(useBtn);
+        td.appendChild(document.createTextNode(' '));
+        td.appendChild(delBtn);
+        tr.appendChild(td);
+        rows.appendChild(tr);
+        var opt = document.createElement('option');
+        opt.value = m.name;
+        opt.textContent = m.name;
+        sel.appendChild(opt);
+      });
+    }).catch(function (e) {
+      errBox.hidden = false;
+      errBox.textContent = 'Ollama: request failed: ' + e;
+    });
+  }
+
+  function setModel(name) {
+    api('/api/gwen/model', { method: 'POST',
+      body: JSON.stringify({ model: name }) }).then(function (res) {
+      if (res.status === 200) loadModels();
+      else alert('Switch failed: ' + (res.body.error || res.status));
+    });
+  }
+
+  function deleteModel(name) {
+    if (!window.confirm('Delete model "' + name + '"? Models are gigabytes; ' +
+                        'this cannot be undone.')) return;
+    api('/api/gwen/models/delete', { method: 'POST',
+      body: JSON.stringify({ name: name }) }).then(function (res) {
+      if (res.status === 200) loadModels();
+      else alert('Delete failed: ' + (res.body.error || res.body.message ||
+                                      res.status));
+    });
+  }
+
+  var pullTimer = null;
+  document.getElementById('pullform').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var name = document.getElementById('pullname').value.trim();
+    if (!name) return;
+    var st = document.getElementById('pullstatus');
+    api('/api/gwen/models/pull', { method: 'POST',
+      body: JSON.stringify({ name: name }) }).then(function (res) {
+      if (res.status !== 200) {
+        st.textContent = 'Pull failed: ' + (res.body.error || res.body.message);
+        return;
+      }
+      st.textContent = 'Pulling ' + name + '…';
+      if (pullTimer) clearInterval(pullTimer);
+      pullTimer = setInterval(function () {
+        api('/api/gwen/models/pull-status?name=' + encodeURIComponent(name))
+          .then(function (r2) {
+            var s = r2.body;
+            if (r2.status === 200) {
+              st.textContent = 'Pulling ' + name + ': ' + s.status;
+              if (s.done) {
+                clearInterval(pullTimer);
+                st.textContent = s.error ? ('Pull failed: ' + s.error)
+                                         : ('Pulled ' + name + '.');
+                loadModels();
+              }
+            }
+          });
+      }, 2000);
+    });
+  });
+
+  document.getElementById('testform').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var model = document.getElementById('testmodel').value;
+    var prompt = document.getElementById('testprompt').value.trim();
+    var out = document.getElementById('testout');
+    if (!prompt) return;
+    out.textContent = 'Thinking…';
+    api('/api/gwen/models/test-chat', { method: 'POST',
+      body: JSON.stringify({ model: model, prompt: prompt }) })
+      .then(function (res) {
+        out.textContent = res.status === 200 ? res.body.response
+                                             : ('Error: ' + (res.body.error ||
+                                                             res.status));
+      }).catch(function (e) { out.textContent = 'Request failed: ' + e; });
+  });
+
+  loadModels();
+})();
+</script>
 {% endblock %}
