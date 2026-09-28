@@ -25,7 +25,8 @@
 <h2>Reply</h2>
 <form method="post" action="/write/reply/{{ th.id }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <textarea name="body" rows="6" cols="80" maxlength="20000" required></textarea><br>
+  <label for="replybody">Your reply</label><br>
+  <textarea id="replybody" name="body" rows="6" cols="80" maxlength="20000" required></textarea><br>
   <button type="submit">Post reply</button>
 </form>
 {% elif not console_user %}
