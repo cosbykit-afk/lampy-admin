@@ -822,6 +822,105 @@ def gwen_confirm():
 
 
 # --------------------------------------------------------------------------
+# Ollama model management (W-3) — extends the Gwen tab
+# --------------------------------------------------------------------------
+
+@app.get("/api/gwen/models")
+@auth.admin_required
+def gwen_models():
+    """Installed models + disk usage + Gwen's current model (OLL-01/02/05).
+    Never blank: Ollama-down returns 502 with a clear error (OLL-08)."""
+    import gwen_chat
+    import ollama_admin
+    ok, models = ollama_admin.list_models()
+    if not ok:
+        return jsonify({"error": models}), 502
+    ok2, total = ollama_admin.disk_usage()
+    return jsonify({
+        "models": models,
+        "disk_total_bytes": total if ok2 else 0,
+        "disk_total": ollama_admin.format_bytes(total) if ok2 else "?",
+        "gwen_model": gwen_chat.get_model(),
+    })
+
+
+@app.post("/api/gwen/model")
+@auth.admin_required
+def gwen_set_model():
+    """Switch the model Gwen chats with (OLL-02). The name must be
+    installed — validated against /api/tags first."""
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    import gwen_chat
+    import ollama_admin
+    data = request.get_json(silent=True) or {}
+    name = (data.get("model") or "").strip()
+    ok, models = ollama_admin.list_models()
+    if not ok:
+        return jsonify({"error": models}), 502
+    if name not in [m["name"] for m in models]:
+        return jsonify({"error": "model not installed: %s" % name}), 400
+    ok, msg = gwen_chat.set_model(name)
+    return jsonify({"ok": ok, "message": msg}), 200 if ok else 500
+
+
+@app.post("/api/gwen/models/pull")
+@auth.admin_required
+def gwen_pull_model():
+    """Start pulling a model in the background (OLL-03)."""
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    import ollama_admin
+    data = request.get_json(silent=True) or {}
+    ok, msg = ollama_admin.pull_model(data.get("name", ""))
+    return jsonify({"ok": ok, "message": msg}), 200 if ok else 400
+
+
+@app.get("/api/gwen/models/pull-status")
+@auth.admin_required
+def gwen_pull_status():
+    """Poll pull progress (OLL-03)."""
+    import ollama_admin
+    ok, state = ollama_admin.pull_status(request.args.get("name", ""))
+    return jsonify(state if ok else {"error": state}), 200 if ok else 404
+
+
+@app.post("/api/gwen/models/delete")
+@auth.admin_required
+def gwen_delete_model():
+    """Delete a model (OLL-04). The UI confirms explicitly first; this
+    endpoint also refuses to delete Gwen's current model."""
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    import gwen_chat
+    import ollama_admin
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if name == gwen_chat.get_model():
+        return jsonify({"error": "refusing to delete the model Gwen is "
+                                 "currently using"}), 400
+    ok, msg = ollama_admin.delete_model(name)
+    return jsonify({"ok": ok, "message": msg}), 200 if ok else 502
+
+
+@app.post("/api/gwen/models/test-chat")
+@auth.admin_required
+def gwen_test_chat():
+    """One-shot prompt against any installed model (OLL-06)."""
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    import ollama_admin
+    data = request.get_json(silent=True) or {}
+    model = (data.get("model") or "").strip()
+    prompt = (data.get("prompt") or "").strip()
+    if not model or not prompt:
+        return jsonify({"error": "model and prompt are required"}), 400
+    ok, text = ollama_admin.test_chat(model, prompt)
+    return jsonify({"response": text} if ok else {"error": text}), \
+        200 if ok else 502
+
+
+# --------------------------------------------------------------------------
 # Logon — forum accounts (users table, Werkzeug hashes)
 # --------------------------------------------------------------------------
 
