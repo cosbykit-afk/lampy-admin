@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Mail Admin</h1>
+<p class="muted">James mail server administration via WebAdmin.
+Users, queues, and mailboxes. All actions are admin-only.</p>
+<div id="maerror" class="err" hidden></div>
+
+<h2>Users</h2>
+<table aria-label="Mail users">
+  <thead><tr><th>Username</th><th>Actions</th></tr></thead>
+  <tbody id="userrows"></tbody>
+</table>
+
+<h3>Add user</h3>
+<form id="addform">
+  <label for="newuser">Username</label>
+  <input type="text" id="newuser" required autocomplete="off">
+  <label for="newpass">Password</label>
+  <input type="password" id="newpass" required autocomplete="new-password">
+  <button type="submit">Add user</button>
+</form>
+
+<h2>Mail queues</h2>
+<div id="queues"></div>
+
+<h2>Mailboxes</h2>
+<form id="mboxform">
+  <label for="mboxuser">Username</label>
+  <input type="text" id="mboxuser" required autocomplete="off">
+  <button type="submit">List mailboxes</button>
+</form>
+<ul id="mboxlist"></ul>
+
+<script>
+(function () {
+  var CSRF = '{{ csrf_token }}';
+  var errBox = document.getElementById('maerror');
+
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign(
+      { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+      opts.headers || {});
+    return fetch(path, opts).then(function (r) {
+      return r.json().then(function (d) { return { status: r.status, body: d }; });
+    });
+  }
+
+  function showError(msg) {
+    errBox.hidden = false;
+    errBox.textContent = msg;
+  }
+
+  function loadUsers() {
+    api('/api/mailadmin/users').then(function (res) {
+      var tb = document.getElementById('userrows');
+      tb.textContent = '';
+      if (res.status !== 200) {
+        showError('Users: ' + (res.body.error || res.status));
+        return;
+      }
+      errBox.hidden = true;
+      res.body.users.forEach(function (u) {
+        var tr = document.createElement('tr');
+        var td = document.createElement('td');
+        td.textContent = u;
+        tr.appendChild(td);
+        var td2 = document.createElement('td');
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.textContent = 'Remove';
+        del.className = 'danger';
+        del.addEventListener('click', function () { removeUser(u); });
+        td2.appendChild(del);
+        tr.appendChild(td2);
+        tb.appendChild(tr);
+      });
+    }).catch(function (e) { showError('Users: request failed: ' + e); });
+  }
+
+  function removeUser(u) {
+    if (!window.confirm('Remove mail user "' + u + '"? Their mailboxes ' +
+                        'will be deleted.')) return;
+    api('/api/mailadmin/users/' + encodeURIComponent(u), { method: 'DELETE' })
+      .then(function (res) {
+        if (res.status === 200) loadUsers();
+        else alert('Remove failed: ' + (res.body.error || res.body.message));
+      });
+  }
+
+  document.getElementById('addform').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var u = document.getElementById('newuser').value.trim();
+    var p = document.getElementById('newpass').value;
+    if (!u || !p) return;
+    api('/api/mailadmin/users', { method: 'POST',
+      body: JSON.stringify({ username: u, password: p }) })
+      .then(function (res) {
+        if (res.status === 200) {
+          document.getElementById('newuser').value = '';
+          document.getElementById('newpass').value = '';
+          loadUsers();
+        } else {
+          alert('Add failed: ' + (res.body.error || res.body.message));
+        }
+      });
+  });
+
+  function loadQueues() {
+    api('/api/mailadmin/queues').then(function (res) {
+      var div = document.getElementById('queues');
+      div.textContent = '';
+      if (res.status !== 200) {
+        showError('Queues: ' + (res.body.error || res.status));
+        return;
+      }
+      res.body.queues.forEach(function (q) {
+        var h = document.createElement('h3');
+        h.textContent = q.name + ' (' + q.count + ' messages)';
+        div.appendChild(h);
+        if (q.mails && q.mails.length) {
+          var ul = document.createElement('ul');
+          q.mails.forEach(function (m) {
+            var li = document.createElement('li');
+            li.textContent = (m.sender || '?') + ' -> ' +
+              ((m.recipients || []).join(', ') || '?');
+            ul.appendChild(li);
+          });
+          div.appendChild(ul);
+        }
+      });
+    }).catch(function (e) { showError('Queues: request failed: ' + e); });
+  }
+
+  document.getElementById('mboxform').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var u = document.getElementById('mboxuser').value.trim();
+    if (!u) return;
+    api('/api/mailadmin/mailboxes?user=' + encodeURIComponent(u))
+      .then(function (res) {
+        var ul = document.getElementById('mboxlist');
+        ul.textContent = '';
+        if (res.status !== 200) {
+          showError('Mailboxes: ' + (res.body.error || res.status));
+          return;
+        }
+        errBox.hidden = true;
+        res.body.mailboxes.forEach(function (m) {
+          var li = document.createElement('li');
+          li.textContent = (m.name || m);
+          ul.appendChild(li);
+        });
+      });
+  });
+
+  loadUsers();
+  loadQueues();
+})();
+</script>
+{% endblock %}
