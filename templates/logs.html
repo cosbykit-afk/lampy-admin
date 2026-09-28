@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Logs: {{ name }}</h1>
+<p class="muted"><code>/var/log/supervisor/{{ name }}.log</code> — last {{ lines }} lines.
+<a href="/stack/logs/{{ name }}?lines={{ lines }}">refresh</a> &middot;
+<a href="/stack">back to Stack</a></p>
+{% if ok %}
+<pre class="logtail">{{ text }}</pre>
+{% else %}
+<p class="error">{{ text }}</p>
+{% endif %}
+{% endblock %}
