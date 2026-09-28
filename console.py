@@ -1028,6 +1028,73 @@ def worker_vectorizers():
 
 
 # --------------------------------------------------------------------------
+# HTTPD (Apache) — admin-only
+# --------------------------------------------------------------------------
+
+@app.get("/httpd")
+@auth.admin_required
+def httpd_index():
+    return render_template("httpd.html", tab="httpd",
+                           csrf_token=security.get_csrf_token())
+
+
+@app.get("/api/httpd/status")
+@auth.admin_required
+def httpd_status_api():
+    import httpd_admin
+    ok, status = httpd_admin.service_status()
+    return jsonify({"ok": ok, "state": status.get("state", "unknown"),
+                    "detail": status.get("detail", "")})
+
+
+@app.get("/api/httpd/vhosts")
+@auth.admin_required
+def httpd_vhosts_api():
+    import httpd_admin
+    ok, vhosts = httpd_admin.list_vhosts()
+    return jsonify({"ok": ok, "vhosts": vhosts if ok else [],
+                    "error": None if ok else vhosts})
+
+
+@app.get("/api/httpd/modules")
+@auth.admin_required
+def httpd_modules_api():
+    import httpd_admin
+    ok, mods = httpd_admin.list_modules()
+    return jsonify({"ok": ok, "modules": mods if ok else [],
+                    "error": None if ok else mods})
+
+
+@app.post("/api/httpd/configtest")
+@auth.admin_required
+def httpd_configtest_api():
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    import httpd_admin
+    ok, out = httpd_admin.config_test()
+    return jsonify({"ok": ok, "output": out})
+
+
+@app.post("/api/httpd/restart")
+@auth.admin_required
+def httpd_restart_api():
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    import stack as stackmod
+    ok, msg = stackmod.supervisor_control("restart", "apache2")
+    return jsonify({"ok": ok, "message": msg})
+
+
+@app.get("/api/httpd/log/<name>")
+@auth.admin_required
+def httpd_log_api(name):
+    import httpd_admin
+    ok, text = httpd_admin.log_tail(name, 100)
+    return jsonify({"ok": ok, "text": text if ok else "",
+                    "error": None if ok else text})
+
+
+# --------------------------------------------------------------------------
 # Logon — forum accounts (users table, Werkzeug hashes)
 # --------------------------------------------------------------------------
 
@@ -1080,6 +1147,54 @@ def logout():
     # POST only: a GET link could be triggered by a third-party page.
     session.pop("console_user", None)
     _drop_mail_creds()
+    return redirect("/stack")
+
+
+@app.get("/signup")
+def signup():
+    if auth.current_console_user():
+        return redirect("/stack")
+    return render_template("signup.html", error="", username="", email="")
+
+
+@app.post("/signup")
+def signup_post():
+    if auth.current_console_user():
+        return redirect("/stack")
+    ip = security.client_ip()
+    # Reuse the login rate limiter for signup abuse prevention.
+    retry_after = login_limiter.check(ip)
+    if retry_after is not None:
+        resp = make_response(render_template(
+            "signup.html", error="Too many attempts — try again in %d seconds."
+                  % retry_after, username="", email=""), 429)
+        resp.headers["Retry-After"] = str(retry_after)
+        return resp
+    if not security.validate_csrf_form():
+        abort(400, "CSRF token missing or invalid")
+    username = request.form.get("username", "")
+    email = request.form.get("email", "")
+    password = request.form.get("password", "")
+    confirm = request.form.get("confirm", "")
+    import signup as signup_mod
+    ok, err = signup_mod.validate_signup(username, email, password, confirm)
+    if not ok:
+        return render_template("signup.html", error=err,
+                               username=username.strip(),
+                               email=email.strip()), 400
+    try:
+        user = signup_mod.create_user(username, email, password)
+    except ValueError as e:
+        return render_template("signup.html", error=str(e),
+                               username=username.strip(),
+                               email=email.strip()), 409
+    except RuntimeError as e:
+        return render_template("signup.html", error=str(e),
+                               username=username.strip(),
+                               email=email.strip()), 503
+    login_limiter.record_success(ip)
+    security.rotate_csrf_token()
+    session["console_user"] = user
     return redirect("/stack")
 
 
