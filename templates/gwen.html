@@ -188,7 +188,8 @@ She can never stop or restart this console.</p>
       sel.textContent = '';
       d.models.forEach(function (m) {
         var tr = document.createElement('tr');
-        [['name', m.name], ['size', m.size], ['modified', m.modified]]
+        var sizeGB = (m.size_bytes / 1073741824).toFixed(1) + ' GB';
+        [['name', m.name], ['size', sizeGB], ['modified', m.modified]]
           .forEach(function (pair) {
             var td = document.createElement('td');
             td.textContent = pair[1];
