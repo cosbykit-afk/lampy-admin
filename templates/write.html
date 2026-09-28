@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>New thread</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<form method="post" action="/write">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>Category<br>
+  <select name="category_id">
+    {% for c in cats %}
+    <option value="{{ c.id }}" {{ 'selected' if cat_id|string == c.id|string }}>{{ c.name }}</option>
+    {% endfor %}
+  </select></label><br><br>
+  <label>Title (max 200 chars)<br>
+  <input type="text" name="title" size="80" maxlength="200" value="{{ title }}" required></label><br><br>
+  <label>Message (max 20,000 chars)<br>
+  <textarea name="body" rows="10" cols="80" maxlength="20000" required>{{ body }}</textarea></label><br><br>
+  <button type="submit">Post thread</button>
+</form>
+<p class="muted">Same rules as the forum app: title 1–200 chars, body 1–20,000 chars.
+Creating a thread logs <code>thread_created</code> and <code>post_created</code> events, exactly like the app.</p>
+{% endblock %}
