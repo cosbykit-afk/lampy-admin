@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ th.title }}</h1>
+<p class="muted"><a href="/forum/category/{{ th.category_id }}">{{ th.cat_name }}</a>
+&middot; by {{ th.author }}
+{% if th.is_locked %}&middot; <span class="lock">&#x1f512; locked — replies disabled</span>{% endif %}</p>
+
+{% for p in posts %}
+<div class="post">
+  <div class="posthead"><strong>{{ p.username }}</strong>
+  <span class="muted">{{ p.created_at }}</span></div>
+  <div class="postbody">{{ p.body }}</div>
+</div>
+{% endfor %}
+
+{% if pages > 1 %}
+<p class="pager">Page {{ page }} of {{ pages }}:
+{% for n in range(1, pages + 1) %}
+  {% if n == page %}<strong>{{ n }}</strong>
+  {% else %}<a href="/forum/thread/{{ th.id }}?page={{ n }}">{{ n }}</a>{% endif %}
+{% endfor %}</p>
+{% endif %}
+
+{% if console_user and not th.is_locked %}
+<h2>Reply</h2>
+<form method="post" action="/write/reply/{{ th.id }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <textarea name="body" rows="6" cols="80" maxlength="20000" required></textarea><br>
+  <button type="submit">Post reply</button>
+</form>
+{% elif not console_user %}
+<p><a href="/login?next=/forum/thread/{{ th.id }}">Log in</a> to reply.</p>
+{% endif %}
+{% endblock %}
