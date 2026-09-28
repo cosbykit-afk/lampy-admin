@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ doc.title }}</h1>
+<p class="muted">slug <code>{{ doc.slug }}</code>{% if doc.diagram_kind %} &middot; diagram: {{ doc.diagram_kind }}{% endif %}</p>
+{% if doc.image_mime %}
+<p><img src="/docs/{{ doc.slug }}/image" alt="diagram for {{ doc.title }}" style="max-width:100%"></p>
+{% endif %}
+<div class="docbody">{{ doc.body }}</div>
+{% endblock %}
