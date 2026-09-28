@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Windows Tools</h1>
+<p class="muted">Connect Windows desktop apps to the WSL Lampy stack.</p>
+
+<h2>Port Forwarding Status</h2>
+<p>Windows apps reach WSL services through localhost port forwards. WSL IP addresses change on reboot — run the refresh script if connections stop working.</p>
+<div id="proxy-status"><p class="muted">Loading…</p></div>
+<p>
+  <button id="btn-refresh-proxy" data-csrf="{{ csrf_token }}">Refresh Port Forwards</button>
+  <span id="refresh-result" class="muted"></span>
+</p>
+
+<h2>pgAdmin (PostgreSQL)</h2>
+<p>Connect pgAdmin on Windows to the WSL PostgreSQL database:</p>
+<table>
+  <tr><th>Host</th><td><code>localhost</code></td></tr>
+  <tr><th>Port</th><td><code>5432</code></td></tr>
+  <tr><th>Database</th><td><code>forum</code></td></tr>
+  <tr><th>Username</th><td><code>dbadmin</code></td></tr>
+  <tr><th>Password</th><td><em>See console server config (not shown here)</em></td></tr>
+</table>
+<p class="muted">In pgAdmin: Right-click Servers → Register → Server. Enter the above under Connection.</p>
+
+<h2>Apache HTTPD</h2>
+<p>Access the WSL Apache server from Windows:</p>
+<ul>
+  <li><a href="http://localhost/" target="_blank">http://localhost/</a> — Main site</li>
+  <li><a href="http://localhost/r-theory/" target="_blank">http://localhost/r-theory/</a> — R Theory site</li>
+</ul>
+<p>Apache management is on the <a href="/httpd">HTTPD tab</a>.</p>
+
+<h2>Mail Clients</h2>
+<p>Connect a Windows mail client (Thunderbird, Outlook) to James:</p>
+<table>
+  <tr><th>IMAP</th><td><code>localhost:1143</code> (STARTTLS)</td></tr>
+  <tr><th>SMTP</th><td><code>localhost:2587</code> (STARTTLS)</td></tr>
+  <tr><th>Username</th><td><code>kit@localhost</code> or <code>muse@localhost</code></td></tr>
+</table>
+
+<h2>Refresh Script</h2>
+<p>If localhost connections stop working (usually after WSL reboot), run this as Administrator on Windows:</p>
+<p><a href="/windowstools/refresh-script" class="btn">Download Refresh-WslPortForwards.ps1</a></p>
+<p class="muted">Right-click → Run with PowerShell (as Admin).</p>
+
+<script>
+async function loadProxyStatus() {
+  const el = document.getElementById('proxy-status');
+  try {
+    const r = await fetch('/api/windowstools/proxy-status');
+    const d = await r.json();
+    if (d.ok) {
+      let html = '<table><tr><th>Port</th><th>Service</th><th>Target</th><th>Status</th></tr>';
+      for (const p of d.proxies) {
+        html += `<tr><td>${p.port}</td><td>${p.service}</td><td>${p.target}</td><td>${p.ok ? '✓' : '✗'}</td></tr>`;
+      }
+      html += '</table>';
+      el.innerHTML = html;
+    } else {
+      el.innerHTML = '<p class="error">Could not check proxy status.</p>';
+    }
+  } catch (e) {
+    el.innerHTML = '<p class="error">Error loading status.</p>';
+  }
+}
+document.getElementById('btn-refresh-proxy').onclick = async (e) => {
+  const btn = e.target;
+  const result = document.getElementById('refresh-result');
+  result.textContent = 'Refreshing…';
+  try {
+    const r = await fetch('/api/windowstools/refresh-proxy', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': btn.dataset.csrf},
+      body: '{}'
+    });
+    const d = await r.json();
+    result.textContent = d.ok ? 'Refreshed successfully.' : ('Failed: ' + (d.error || 'unknown'));
+    loadProxyStatus();
+  } catch (err) {
+    result.textContent = 'Error: ' + err.message;
+  }
+};
+loadProxyStatus();
+</script>
+{% endblock %}
