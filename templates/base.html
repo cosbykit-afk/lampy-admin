@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lampy Console{% if title %} — {{ title }}{% endif %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='console.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">&#x1fa94; Lampy Console</div>
+  <nav class="tabs">
+    <a href="/stack" class="{{ 'active' if tab == 'stack' }}">Stack</a>
+    <a href="/forum" class="{{ 'active' if tab == 'forum' }}">Forum</a>
+    <a href="/write" class="{{ 'active' if tab == 'write' }}">Write</a>
+    <a href="/search" class="{{ 'active' if tab == 'search' }}">Search</a>
+    <a href="/docs" class="{{ 'active' if tab == 'docs' }}">Docs</a>
+    <a href="/metrics" class="{{ 'active' if tab == 'metrics' }}">Metrics</a>
+    <a href="/mail" class="{{ 'active' if tab == 'mail' }}">Mail</a>
+    {% if console_user and console_user.is_admin %}
+    <a href="/admin" class="{{ 'active' if tab == 'admin' }}">Admin</a>
+    <a href="/db" class="{{ 'active' if tab == 'db' }}">Database</a>
+    {% endif %}
+  </nav>
+  <div class="userbox">
+    {% if console_user %}
+      <span class="who">{{ console_user.username }}{% if console_user.is_admin %} (admin){% endif %}</span>
+      <form method="post" action="/logout" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="linkbtn">log out</button>
+      </form>
+    {% else %}
+      <a href="/login">log in</a>
+    {% endif %}
+  </div>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+<footer class="foot">Lampy web console (phase 1) — probes hit the real services; a red card is a real failure, never a guess.</footer>
+</body>
+</html>
