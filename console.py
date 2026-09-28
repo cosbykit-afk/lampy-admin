@@ -991,6 +991,71 @@ def mailadmin_mailboxes():
         200 if ok else 502
 
 
+@app.get("/api/mailadmin/setup-needed")
+@auth.admin_required
+def mailadmin_setup_needed():
+    import mail_roles
+    return jsonify({"setup_needed": not mail_roles.has_admin()})
+
+
+@app.post("/api/mailadmin/setup-admin")
+@auth.admin_required
+def mailadmin_setup_admin():
+    """Create the first mail administrator. Only works if none exists."""
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    import mail_roles, james_admin
+    if mail_roles.has_admin():
+        return jsonify({"error": "An administrator already exists."}), 409
+    data = request.get_json(force=True, silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    if "@" not in username or len(password) < 8:
+        return jsonify({"error": "Enter a valid email and password (min 8 chars)."}), 400
+    ok, msg = james_admin.add_user(username, password)
+    if not ok:
+        return jsonify({"error": msg}), 502
+    user = auth.current_console_user()
+    mail_roles.set_role(username, "admin",
+                        created_by=user["username"] if user else None)
+    return jsonify({"ok": True, "username": username})
+
+
+@app.get("/api/mailadmin/roles")
+@auth.admin_required
+def mailadmin_roles():
+    import mail_roles
+    return jsonify({"roles": [
+        {"username": u, "role": r} for u, r in mail_roles.list_roles()
+    ]})
+
+
+@app.post("/api/mailadmin/set-role")
+@auth.admin_required
+def mailadmin_set_role():
+    """Promote/demote a mail user. Admin only."""
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    import mail_roles
+    data = request.get_json(force=True, silent=True) or {}
+    username = (data.get("username") or "").strip()
+    role = (data.get("role") or "").strip()  # admin, moderator, or "" to demote
+    user = auth.current_console_user()
+    by = user["username"] if user else None
+    try:
+        if role == "":
+            # Prevent removing the last admin
+            if mail_roles.get_role(username) == "admin" and \
+               mail_roles.count_admins() <= 1:
+                return jsonify({"error": "Cannot remove the last administrator."}), 409
+            mail_roles.remove_role(username)
+        else:
+            mail_roles.set_role(username, role, created_by=by)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"ok": True})
+
+
 # --------------------------------------------------------------------------
 # Worker (W-5) — pgai vectorizer worker status, admin-only
 # --------------------------------------------------------------------------
