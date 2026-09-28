@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Database</h1>
+<p class="muted">PostgreSQL databases on this server, listed live from
+<code>pg_database</code> — no hardcoded names.</p>
+<table>
+<tr><th>Database</th><th></th></tr>
+{% for d in databases %}
+<tr><td><code>{{ d }}</code></td>
+    <td><a href="/db/{{ d }}">browse</a> &middot;
+        <a href="/db/{{ d }}/sql">SQL</a></td></tr>
+{% endfor %}
+</table>
+{% endblock %}
