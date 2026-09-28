@@ -60,3 +60,8 @@ button:hover, .btn:hover { background: #3a8a62; }
 .logtail { background: #141a20; color: #c8d4de; border: 1px solid #2c3640;
   border-radius: 6px; padding: 1em; overflow-x: auto; white-space: pre-wrap;
   font-size: 0.82em; max-height: 70vh; overflow-y: auto; }
+
+/* W-6: visible keyboard focus on every interactive element */
+a:focus-visible, button:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid #6db3f2; outline-offset: 2px; }
