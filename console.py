@@ -57,7 +57,10 @@ import db
 import dbbrowser
 import mail as mailmod
 import security
+import settings
 import stack as stackmod
+import theory_updater
+import updater
 
 app = Flask(__name__)
 app.secret_key = security.load_secret_key()
@@ -400,8 +403,27 @@ def db_export(dbname):
 # Forum (read)
 # --------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------
+# Forum access control (registered-users-only toggle)
+# --------------------------------------------------------------------------
+
+def _forum_requires_login():
+    """Check if forum viewing requires login (admin toggle)."""
+    return settings.get("forum_registered_only") is True
+
+
+def _check_forum_access():
+    """Redirect to login if forum is restricted and user not logged in."""
+    if _forum_requires_login() and not auth.current_console_user():
+        return redirect("/login?next=" + request.path)
+    return None
+
+
 @app.get("/forum")
 def forum_index():
+    access = _check_forum_access()
+    if access:
+        return access
     try:
         cats = db.get_categories()
         latest = db.get_latest_threads()
@@ -412,6 +434,9 @@ def forum_index():
 
 @app.get("/forum/category/<int:cat_id>")
 def forum_category(cat_id):
+    access = _check_forum_access()
+    if access:
+        return access
     try:
         cat, threads = db.get_category(cat_id)
     except Exception as e:  # noqa: BLE001
@@ -423,6 +448,9 @@ def forum_category(cat_id):
 
 @app.get("/forum/thread/<int:thread_id>")
 def forum_thread(thread_id):
+    access = _check_forum_access()
+    if access:
+        return access
     page = request.args.get("page", "1")
     try:
         page = max(1, int(page))
@@ -699,8 +727,12 @@ def admin():
         threads = db.get_threads_for_admin()
     except Exception as e:  # noqa: BLE001
         return _db_error(e, "load the admin page")
+    forum_registered_only = settings.get("forum_registered_only") is True
+    current_version = updater.get_current_version()
     return render_template("admin.html", users=users, counts=counts,
-                           threads=threads)
+                           threads=threads,
+                           forum_registered_only=forum_registered_only,
+                           current_version=current_version)
 
 
 @app.post("/admin/lock/<int:thread_id>")
@@ -714,6 +746,60 @@ def admin_lock(thread_id):
     except Exception as e:  # noqa: BLE001
         return _db_error(e, "update the thread lock")
     return redirect("/admin")
+
+
+# --------------------------------------------------------------------------
+# Forum settings (registered-users-only toggle)
+# --------------------------------------------------------------------------
+
+@app.post("/admin/forum-toggle")
+@auth.admin_required
+def admin_forum_toggle():
+    if not security.validate_csrf_form():
+        abort(400, "CSRF token missing or invalid")
+    enabled = request.form.get("forum_registered_only") == "1"
+    settings.set("forum_registered_only", enabled)
+    return redirect("/admin")
+
+
+# --------------------------------------------------------------------------
+# Self-updater (check GitHub releases, apply update)
+# --------------------------------------------------------------------------
+
+@app.get("/api/update/check")
+@auth.admin_required
+def update_check_api():
+    info = updater.check_for_update()
+    return jsonify(info)
+
+
+@app.post("/api/update/apply")
+@auth.admin_required
+def update_apply_api():
+    if not security.validate_csrf_json():
+        return jsonify({"ok": False, "error": "CSRF token missing or invalid"}), 400
+    ok, message = updater.apply_update()
+    return jsonify({"ok": ok, "message": message})
+
+
+# --------------------------------------------------------------------------
+# R Theory website updater (ledger change detection + site deploy)
+# --------------------------------------------------------------------------
+
+@app.get("/api/theory/update-check")
+@auth.admin_required
+def theory_update_check_api():
+    info = theory_updater.check_theory_update()
+    return jsonify(info)
+
+
+@app.post("/api/theory/update-apply")
+@auth.admin_required
+def theory_update_apply_api():
+    if not security.validate_csrf_json():
+        return jsonify({"ok": False, "error": "CSRF token missing or invalid"}), 400
+    ok, message = theory_updater.apply_theory_update()
+    return jsonify({"ok": ok, "message": message})
 
 
 @app.get("/admin/backup")
