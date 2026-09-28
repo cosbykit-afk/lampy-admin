@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>SQL — {{ dbname }}</h1>
+<p class="muted"><a href="/db/{{ dbname }}">back to {{ dbname }}</a></p>
+
+{% if write_enabled %}
+<p class="error">&#9888; WRITE MODE ENABLED for this database — destructive
+statements are allowed in this session.</p>
+<form method="post" action="/db/{{ dbname }}/sql/disable-write" class="inline">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<button type="submit">Disable write mode</button>
+</form>
+{% else %}
+<p class="muted">READ-ONLY mode — only SELECT / WITH / EXPLAIN / VALUES /
+TABLE run. Destructive statements are refused.</p>
+<form method="post" action="/db/{{ dbname }}/sql/enable-write">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<p><label><input type="checkbox" name="confirm" value="yes">
+I understand destructive statements can destroy data</label></p>
+<p><button type="submit">Enable write mode for this database</button></p>
+</form>
+{% endif %}
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+<form method="post" action="/db/{{ dbname }}/sql">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<p><label for="sql">SQL:</label><br>
+<textarea id="sql" name="sql" rows="8" cols="80">{{ sql }}</textarea></p>
+<p><button type="submit">Run</button></p>
+</form>
+
+{% if ran %}
+<h2>Results</h2>
+{% if cols %}
+<p class="muted">{{ rows|length }} row(s){% if truncated %} — showing the
+first 1000; use Export for the full result{% endif %} ({{ mode }}).</p>
+<table>
+<tr>{% for c in cols %}<th>{{ c }}</th>{% endfor %}</tr>
+{% for row in rows %}
+<tr>{% for cell in row %}<td>{% if cell is none %}<span class="null">NULL</span>{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>
+{% endfor %}
+</table>
+<form method="post" action="/db/{{ dbname }}/export">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<input type="hidden" name="sql" value="{{ sql }}">
+<button type="submit">Export results as CSV</button>
+</form>
+{% else %}
+<p class="muted">Statement ran OK — no result rows ({{ mode }}).</p>
+{% endif %}
+{% endif %}
+{% endblock %}
