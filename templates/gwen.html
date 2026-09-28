@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Gwen</h1>
+<p class="muted">Chat with Gwen, the Lampy administrator assistant. She can check
+service status and read logs freely. Restart/stop/start actions need your
+explicit confirmation — she proposes, you approve, and only then does it run.
+She can never stop or restart this console.</p>
+
+<div id="chatlog" aria-live="polite" class="chatlog"></div>
+
+<div id="pendingbox" class="pendingbox" hidden>
+  <p><strong>Pending action:</strong> <span id="pendingdesc"></span></p>
+  <p class="muted">This token is single-use and expires in 120 seconds.</p>
+  <button type="button" id="confirmbtn" class="danger">Confirm</button>
+  <button type="button" id="cancelbtn">Cancel</button>
+</div>
+
+<form id="chatform">
+  <label for="msg">Message Gwen</label><br>
+  <input type="text" id="msg" name="msg" size="80" autocomplete="off" required>
+  <button type="submit">Send</button>
+</form>
+
+<script>
+(function () {
+  var history = [];           // prior turns only; current message added after
+  var log = document.getElementById('chatlog');
+  var form = document.getElementById('chatform');
+  var input = document.getElementById('msg');
+  var pendingBox = document.getElementById('pendingbox');
+  var pendingDesc = document.getElementById('pendingdesc');
+  var pendingToken = null;
+  var CSRF = '{{ csrf_token }}';
+
+  function addMsg(role, text) {
+    var div = document.createElement('div');
+    div.className = 'chatmsg ' + role;
+    var who = document.createElement('strong');
+    who.textContent = role === 'user' ? 'Kit: ' : 'Gwen: ';
+    var body = document.createElement('span');
+    body.textContent = text;   // textContent, never innerHTML: no HTML injection
+    div.appendChild(who);
+    div.appendChild(body);
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function showPending(payload) {
+    pendingToken = payload.token;
+    pendingDesc.textContent = payload.description;
+    pendingBox.hidden = false;
+    document.getElementById('confirmbtn').focus();
+  }
+
+  function hidePending() {
+    pendingToken = null;
+    pendingBox.hidden = true;
+  }
+
+  document.getElementById('cancelbtn').addEventListener('click', function () {
+    hidePending();
+    addMsg('assistant', 'Cancelled — nothing was executed.');
+  });
+
+  document.getElementById('confirmbtn').addEventListener('click', function () {
+    if (!pendingToken) return;
+    var token = pendingToken;
+    hidePending();
+    fetch('/api/gwen/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+      body: JSON.stringify({ token: token })
+    }).then(function (r) { return r.json().then(function (d) {
+      return { status: r.status, body: d };
+    }); }).then(function (res) {
+      var d = res.body;
+      if (res.status === 200 && d.ok) {
+        addMsg('assistant', 'Done: ' + d.action + ' ' + d.name + ' — ' + d.message);
+        history.push({ role: 'assistant',
+          content: '[Control action completed: ' + d.action + ' ' + d.name +
+                   ' — ' + (d.ok ? 'ok' : 'failed') + '. ' + d.message +
+                   ' Summarize briefly for Kit.]' });
+      } else {
+        addMsg('assistant', 'Confirmation failed: ' +
+          (d.error || d.message || ('HTTP ' + res.status)));
+      }
+    }).catch(function (e) {
+      addMsg('assistant', 'Confirmation request failed: ' + e);
+    });
+  });
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var message = input.value.trim();
+    if (!message) return;
+    input.value = '';
+    addMsg('user', message);
+    // Send prior turns only — the server appends the current message
+    // itself (and dedups defensively). Never pre-push the user turn.
+    fetch('/api/gwen/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+      body: JSON.stringify({ message: message, history: history.slice(-40) })
+    }).then(function (r) { return r.json().then(function (d) {
+      return { status: r.status, body: d };
+    }); }).then(function (res) {
+      var d = res.body;
+      if (res.status !== 200) {
+        addMsg('assistant', 'Error: ' + (d.error || ('HTTP ' + res.status)));
+        history.push({ role: 'user', content: message });
+        return;
+      }
+      addMsg('assistant', d.response);
+      // Now record both turns, exactly once each.
+      history.push({ role: 'user', content: message });
+      history.push({ role: 'assistant', content: d.response });
+      if (d.pending_action) showPending(d.pending_action);
+    }).catch(function (e) {
+      addMsg('assistant', 'Request failed: ' + e);
+      history.push({ role: 'user', content: message });
+    });
+  });
+
+  input.focus();
+})();
+</script>
+{% endblock %}
