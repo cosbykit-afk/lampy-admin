@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Admin</h1>
+
+<h2>Tables</h2>
+<table>
+<tr>{% for t, n in counts.items() %}<th>{{ t }}</th>{% endfor %}</tr>
+<tr>{% for t, n in counts.items() %}<td>{{ n }}</td>{% endfor %}</tr>
+</table>
+
+<h2>Users</h2>
+<table>
+<tr><th>ID</th><th>Username</th><th>Email</th><th>Admin</th><th>Created</th></tr>
+{% for u in users %}
+<tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td>{{ u.email }}</td>
+    <td>{{ "yes" if u.is_admin else "" }}</td><td>{{ u.created_at }}</td></tr>
+{% endfor %}
+</table>
+
+<h2>Threads (lock / unlock)</h2>
+<table>
+<tr><th>ID</th><th>Title</th><th>Category</th><th>By</th><th>Posts</th><th>Locked</th></tr>
+{% for t in threads %}
+<tr><td>{{ t.id }}</td>
+    <td><a href="/forum/thread/{{ t.id }}">{{ t.title }}</a></td>
+    <td>{{ t.cat_name }}</td><td>{{ t.author }}</td><td>{{ t.post_count }}</td>
+    <td><form method="post" action="/admin/lock/{{ t.id }}" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="locked" value="{{ '0' if t.is_locked else '1' }}">
+      <button type="submit">{{ "Unlock" if t.is_locked else "Lock" }}</button>
+    </form></td></tr>
+{% endfor %}
+</table>
+
+<h2>Backup</h2>
+<p><a href="/admin/backup" class="btn">Download database backup (pg_dump)</a></p>
+<p class="muted">Dumps the <code>forum</code> database straight from this console over TCP —
+no command prompt needed.</p>
+
+<h2>Workspace</h2>
+<p><a href="#" id="codeserver-link" class="btn" target="_blank" rel="noopener">Open code-server IDE (:8080)</a></p>
+<script>
+document.getElementById('codeserver-link').href =
+  location.protocol + '//' + location.hostname + ':8080/';
+</script>
+{% endblock %}
