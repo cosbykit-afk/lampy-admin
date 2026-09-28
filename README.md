@@ -23,7 +23,7 @@ terminal users.
 | W-1 | Generic PostgreSQL database browser tab (read-only by default, per-session write confirm, 30s statement timeout, CSV export) | Implemented, unit-tested |
 | W-0 | James WebAdmin stabilization (port 8001, auth) | Pending |
 | W-2 | Gwen chat tab (repaired: pending-action tokens, separate confirm endpoint, audit log) | Implemented, mocked-tested (live tests need gwen:latest) |
-| W-3 | Ollama model management tab | Pending |
+| W-3 | Ollama model management (list/pull/delete/test-chat/switch, disk usage) | Implemented, mocked-tested |
 | W-4 | Mail Admin tab | Pending |
 | W-5 | pgai Worker tab | Pending |
 | W-6 | Full keyboard accessibility audit | Pending |
