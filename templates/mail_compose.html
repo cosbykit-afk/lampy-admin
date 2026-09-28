@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Compose</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<form method="post" action="/mail/send">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>To<br><input type="text" name="to" size="60" required></label><br><br>
+  <label>Subject<br><input type="text" name="subject" size="60"></label><br><br>
+  <label>Body<br><textarea name="body" rows="10" cols="80" required></textarea></label><br><br>
+  <button type="submit">Send via James :2587</button>
+</form>
+{% endblock %}
