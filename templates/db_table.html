@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ dbname }}.{{ schema }}.{{ table }}</h1>
+<p class="muted"><a href="/db">databases</a> /
+<a href="/db/{{ dbname }}">{{ dbname }}</a> &middot;
+<a href="/db/{{ dbname }}/sql">open in SQL box</a></p>
+
+<h2>Metadata</h2>
+<table>
+<tr><th>Rows (estimate)</th><td>~{{ meta.estimate }}</td></tr>
+<tr><th>Size on disk</th><td>{{ meta.size }}</td></tr>
+</table>
+
+<h3>Columns</h3>
+<table>
+<tr><th>Name</th><th>Type</th><th>Max length</th><th>Nullable</th></tr>
+{% for c in meta.columns %}
+<tr><td><code>{{ c.name }}</code></td><td><code>{{ c.type }}</code></td>
+    <td>{{ c.length if c.length is not none else "" }}</td>
+    <td>{{ c.nullable }}</td></tr>
+{% endfor %}
+</table>
+
+<h2>Rows — page {{ page }} of ~{{ pages }}</h2>
+<p>
+{% if page > 1 %}
+<a href="/db/{{ dbname }}/{{ schema }}/{{ table }}?page={{ page - 1 }}">&larr; Prev</a>
+{% endif %}
+<form method="get" action="/db/{{ dbname }}/{{ schema }}/{{ table }}" class="inline">
+<label>Page <input type="number" name="page" value="{{ page }}" min="1" max="{{ pages }}"></label>
+<button type="submit">Go</button>
+</form>
+{% if page < pages %}
+<a href="/db/{{ dbname }}/{{ schema }}/{{ table }}?page={{ page + 1 }}">Next &rarr;</a>
+{% endif %}
+</p>
+<table>
+<tr>{% for col in cols %}<th>{{ col }}</th>{% endfor %}</tr>
+{% for row in rows %}
+<tr>{% for cell in row %}<td>{% if cell is none %}<span class="null">NULL</span>{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>
+{% endfor %}
+</table>
+<p class="muted">Row order is by <code>ctid</code> — stable for browsing any
+table, but not a primary-key order and it can shift after VACUUM/UPDATE.
+Counts are planner estimates.</p>
+{% endblock %}
