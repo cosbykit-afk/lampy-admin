@@ -921,6 +921,77 @@ def gwen_test_chat():
 
 
 # --------------------------------------------------------------------------
+# Mail Admin (W-4) — James WebAdmin REST API, admin-only
+# --------------------------------------------------------------------------
+
+@app.get("/mailadmin")
+@auth.admin_required
+def mailadmin_index():
+    return render_template("mailadmin.html", tab="mailadmin",
+                           csrf_token=security.new_csrf_token())
+
+
+@app.get("/api/mailadmin/users")
+@auth.admin_required
+def mailadmin_users():
+    import james_admin
+    ok, users = james_admin.list_users()
+    return jsonify({"users": users} if ok else {"error": users}), \
+        200 if ok else 502
+
+
+@app.post("/api/mailadmin/users")
+@auth.admin_required
+def mailadmin_add_user():
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    import james_admin
+    data = request.get_json(silent=True) or {}
+    # Password comes from the admin's form; never logged, never stored.
+    ok, msg = james_admin.add_user(data.get("username", ""),
+                                   data.get("password", ""))
+    return jsonify({"ok": ok, "message": msg}), 200 if ok else 400
+
+
+@app.delete("/api/mailadmin/users/<username>")
+@auth.admin_required
+def mailadmin_remove_user(username):
+    if not security.validate_csrf_json():
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+    import james_admin
+    ok, msg = james_admin.remove_user(username)
+    return jsonify({"ok": ok, "message": msg}), 200 if ok else 400
+
+
+@app.get("/api/mailadmin/queues")
+@auth.admin_required
+def mailadmin_queues():
+    import james_admin
+    ok, queues = james_admin.list_queues()
+    if not ok:
+        return jsonify({"error": queues}), 502
+    result = []
+    for q in queues:
+        ok2, mails = james_admin.queue_mails(q)
+        result.append({"name": q,
+                       "count": len(mails) if ok2 else -1,
+                       "mails": mails[:10] if ok2 else []})
+    return jsonify({"queues": result})
+
+
+@app.get("/api/mailadmin/mailboxes")
+@auth.admin_required
+def mailadmin_mailboxes():
+    import james_admin
+    user = request.args.get("user", "").strip()
+    if not user:
+        return jsonify({"error": "user parameter required"}), 400
+    ok, boxes = james_admin.list_mailboxes(user)
+    return jsonify({"mailboxes": boxes} if ok else {"error": boxes}), \
+        200 if ok else 502
+
+
+# --------------------------------------------------------------------------
 # Logon — forum accounts (users table, Werkzeug hashes)
 # --------------------------------------------------------------------------
 
