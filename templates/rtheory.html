@@ -5,6 +5,79 @@
 <p class="sub">Deploy, parse, vectorize, and search the R Theory rewrite series.</p>
 
 <div class="card">
+  <h2>Website Updates</h2>
+  <p class="hint">Checks GitHub for ledger changes and new site builds.</p>
+  <p>
+    <button type="button" id="theory-check-btn" class="btn">Check for website updates</button>
+    <span id="theory-status" class="muted" role="status"></span>
+  </p>
+  <div id="theory-info" style="display:none;">
+    <p id="theory-detail"></p>
+    <button type="button" id="theory-apply-btn" class="btn" style="display:none;">Deploy website update</button>
+  </div>
+</div>
+<script>
+(function() {
+  var csrf = "{{ csrf_token() }}";
+  var checkBtn = document.getElementById('theory-check-btn');
+  var applyBtn = document.getElementById('theory-apply-btn');
+  var status = document.getElementById('theory-status');
+  var infoDiv = document.getElementById('theory-info');
+  var detail = document.getElementById('theory-detail');
+  if (!checkBtn) return;
+  checkBtn.addEventListener('click', function() {
+    status.textContent = 'Checking GitHub...';
+    infoDiv.style.display = 'none';
+    applyBtn.style.display = 'none';
+    fetch('/api/theory/update-check', {credentials: 'same-origin'})
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.ok) { status.textContent = 'Error: ' + (d.error || 'unknown'); return; }
+        infoDiv.style.display = 'block';
+        var html = '';
+        if (d.ledger_changed) {
+          html += '<p><span class="hint">&#x1f4cb; Ledger changed:</span> ' + d.ledger_sha +
+            ' — ' + d.ledger_message + '</p>';
+        }
+        if (d.needs_rebuild) {
+          html += '<p class="hint">Ledger changed but the site has not been rebuilt yet. ' +
+            'The site-dist build needs to run before deploying.</p>';
+        }
+        if (d.ready_to_deploy) {
+          html += '<p><strong>New site build available:</strong> ' + d.site_sha +
+            ' — ' + d.site_message + '<br><span class="muted">' + d.site_date + '</span></p>';
+          applyBtn.style.display = 'inline-block';
+          status.textContent = '';
+        } else if (!d.needs_rebuild) {
+          status.textContent = 'Website is up to date.';
+        } else {
+          status.textContent = '';
+        }
+        detail.innerHTML = html;
+      })
+      .catch(function(e) { status.textContent = 'Error: ' + e.message; });
+  });
+  applyBtn.addEventListener('click', function() {
+    if (!confirm('Deploy the latest website build? The current site will be backed up.')) return;
+    status.textContent = 'Downloading and deploying...';
+    applyBtn.disabled = true;
+    fetch('/api/theory/update-apply', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({csrf_token: csrf})
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        status.textContent = d.message || (d.ok ? 'Done.' : 'Failed.');
+        applyBtn.disabled = false;
+        if (d.ok) applyBtn.style.display = 'none';
+      })
+      .catch(function(e) { status.textContent = 'Error: ' + e.message; applyBtn.disabled = false; });
+  });
+})();
+</script>
+
+<div class="card">
   <h2>Status</h2>
   <dl class="stats">
     <dt>Chunks in database</dt><dd id="stat-chunks">{{ stats[0] }}</dd>
