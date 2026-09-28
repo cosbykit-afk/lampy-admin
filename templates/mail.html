@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Mail</h1>
+{% if not connected %}
+<p class="muted">James mail (IMAP :1143, SMTP :2587). Your mailbox credentials are kept in a
+server-side in-memory vault only — never in the session cookie, never written to disk.</p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
+<form method="post" action="/mail/connect">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>Mailbox (e.g. <code>kit@localhost</code>)<br>
+  <input type="text" name="mail_user" size="40" required></label><br><br>
+  <label>Password<br>
+  <input type="password" name="mail_password" size="40" required></label><br><br>
+  <button type="submit">Connect</button>
+</form>
+{% else %}
+<p>Signed in as <strong>{{ user }}</strong>
+<a href="/mail/compose" class="btn">Compose</a>
+<form method="post" action="/mail/disconnect" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="linkbtn">disconnect</button>
+</form></p>
+<table>
+<tr><th>From</th><th>Subject</th><th>Date</th></tr>
+{% for m in msgs %}
+<tr><td>{{ m.from }}</td>
+    <td><a href="/mail/{{ m.num }}">{{ m.subject }}</a></td>
+    <td>{{ m.date }}</td></tr>
+{% else %}
+<tr><td colspan="3" class="muted">Inbox is empty.</td></tr>
+{% endfor %}
+</table>
+{% endif %}
+{% endblock %}
