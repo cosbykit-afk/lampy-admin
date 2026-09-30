@@ -98,3 +98,25 @@ tests/          pytest suite
 docs/           operator + design docs
 deploy/         supervisor program snippet (fill in secrets on the box)
 ```
+
+## Build status (2026-09-30)
+
+- **Release `v1.1.0`** (2026-09-28) — Mail module (James WebAdmin user
+  management, IMAP/SMTP with STARTTLS), R Theory module (site parser,
+  pgvector semantic search), Windows Tools (port forwarding status).
+- **Deployed** — runs inside the `lampy` WSL distro on Toetop as the
+  supervisord `[program:console]` (root), web on `127.0.0.1:8090`,
+  SSH admin on `127.0.0.1:8022`.
+- **Supervisord incident resolved** (2026-09-30) — duplicate-supervisord
+  race fixed with a flock guard; connector pools raised; all 12 distro
+  programs verified RUNNING.
+
+## Known issues
+
+- **WSL localhost forwarding is broken on the reference host** — services
+  bound to distro `127.0.0.1` are unreachable from Windows PowerShell
+  (verified 2026-09-27). The console is therefore only reachable from
+  inside the distro until this is fixed (mirrored networking or a
+  `wsl --shutdown` relay reset — host owner's call).
+- **W-0 and W-7 pending** — James WebAdmin stabilization and the final
+  acceptance-criteria verification are not yet done (see Module map).
